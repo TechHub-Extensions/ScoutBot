@@ -1,0 +1,26 @@
+# Secrets — never commit these
+.env
+service_account.json
+*.json
+!requirements*.txt
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Scrapy
+.scrapy/
+scrapy.log
+scoutbot.log
+
+# OS
+.DS_Store
+Thumbs.db
