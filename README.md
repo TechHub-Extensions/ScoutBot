@@ -33,7 +33,75 @@ All project communication goes through email. These are the primary contacts:
 | Success | successolamide46@gmail.com | Core Team |
 | Ayanfe | ayanfeoluwaalalade2000@gmail.com | Core Team |
 
-To reach the team, email **kamsirichard1960@gmail.com** with the subject line `[ScoutBot] Your Topic Here`.
+To reach the team, email **kamsirichard1960@gmail.com** with subject `[ScoutBot] Your Topic Here`.
+
+---
+
+## Technologies Used
+
+ScoutBot is built entirely in Python. Below is every technology, library, and external service used — what it is, why it was chosen, and what version is in use.
+
+### Language
+
+| Technology | Version | Purpose |
+|-----------|---------|---------|
+| **Python** | 3.11 | Core language. Chosen for its rich ecosystem of scraping, data, and automation libraries. |
+
+### Web Scraping
+
+| Library | Version | Purpose |
+|---------|---------|---------|
+| **Scrapy** | 2.15.0 | The main scraping engine. An industrial-strength, open-source Python framework for crawling websites and extracting structured data. Handles concurrency, rate-limiting, retries, and pipelines automatically. |
+| **lxml** | 6.1.0 | Fast XML/HTML parser. Scrapy uses it internally to parse downloaded pages efficiently. |
+| **cssselect** | 1.2.0 | Allows Scrapy to use CSS selectors (like `h2 a::text`) to target HTML elements. |
+| **requests** | 2.33.1 | HTTP library used for direct HTTP calls (e.g. health checks and utility scripts). Scrapy handles most requests internally. |
+
+### Google Sheets Integration
+
+| Library | Version | Purpose |
+|---------|---------|---------|
+| **gspread** | 6.2.1 | Python client for the Google Sheets API. Used to read existing rows and append new opportunities to the spreadsheet. |
+| **google-auth** | 2.49.2 | Google's official authentication library. Handles OAuth2 credentials for the service account that accesses Google Sheets. |
+| **google-auth-oauthlib** | 1.2.0 | Adds OAuth 2.0 flow support to google-auth. Required by gspread for service account authentication. |
+| **google-auth-httplib2** | 0.2.0 | HTTP transport adapter for google-auth. Allows the Google API client to make authenticated requests. |
+| **google-api-python-client** | 2.127.0 | Google's official Python client for all Google APIs. Provides the underlying transport for Sheets and Drive access. |
+
+### Email
+
+| Tool | Version | Purpose |
+|------|---------|---------|
+| **smtplib** | Built-in | Python's built-in library for sending emails via SMTP. No installation needed. |
+| **email.mime** | Built-in | Python's built-in module for constructing email messages with HTML content and proper encoding. |
+| **Gmail SMTP** | — | Email delivery service. ScoutBot logs in to Gmail via App Password and sends emails through Gmail's SMTP server (`smtp.gmail.com:465`). Free and reliable. |
+
+### Scheduling & Automation
+
+| Library | Version | Purpose |
+|---------|---------|---------|
+| **schedule** | 1.2.2 | Lightweight Python job scheduler. Used to trigger the full pipeline at 7:00 AM and 7:00 PM every day. Simple, no external dependencies. |
+
+### Configuration & Security
+
+| Library | Version | Purpose |
+|---------|---------|---------|
+| **python-dotenv** | 1.2.2 | Loads environment variables from a `.env` file into the Python runtime. Keeps all credentials (passwords, API keys) out of source code. |
+
+### External Services
+
+| Service | Purpose |
+|---------|---------|
+| **Google Sheets API** | Stores all scraped opportunities in a shared, human-readable spreadsheet |
+| **Google Drive API** | Required alongside Sheets API for service account access |
+| **Google Service Account** | A non-human Google account that authenticates the bot's access to Sheets without needing a user to log in |
+
+### Development Tools
+
+| Tool | Purpose |
+|------|---------|
+| **Git** | Version control |
+| **GitHub** | Repository hosting at [TechHub-Extensions/ScoutBot](https://github.com/TechHub-Extensions/ScoutBot) |
+| **python-dotenv** | Manages credentials safely in `.env` files |
+| **.gitignore** | Prevents secrets (`.env`, `service_account.json`) from being committed to GitHub |
 
 ---
 
@@ -59,7 +127,7 @@ Tech · Engineering · Law · Finance · Medicine · General
 - scholarshipair.com
 - opportunities.youthhubafrica.org
 - myschoolng.com
-- *(and more — contributors can add sources)*
+- *(contributors can add more — see CONTRIBUTING.md)*
 
 ---
 
@@ -138,13 +206,13 @@ python run.py --notify
 
 ## Adding Email Recipients
 
-To add a new subscriber to the email digest, open `.env` and add their email to the `RECIPIENT_EMAILS` list, separated by commas:
+Open `.env` and add the new email to `RECIPIENT_EMAILS`, separated by commas:
 
 ```env
-RECIPIENT_EMAILS=kamsirichard1960@gmail.com,newperson@gmail.com,another@gmail.com
+RECIPIENT_EMAILS=kamsirichard1960@gmail.com,newperson@gmail.com
 ```
 
-That's it. No code changes needed.
+No code changes needed.
 
 ---
 
@@ -154,18 +222,18 @@ That's it. No code changes needed.
 
 1. Go to [myaccount.google.com](https://myaccount.google.com)
 2. Enable **2-Step Verification** (Security tab)
-3. Search for **App passwords** at the top
+3. Search for **App passwords**
 4. Create one named "ScoutBot" — copy the 16-character code
-5. Paste it as `GMAIL_APP_PASSWORD` in your `.env`
+5. Set it as `GMAIL_APP_PASSWORD` in your `.env`
 
 ### Google Service Account (for Sheets access)
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com)
 2. Create or select a project
-3. Enable **Google Sheets API** and **Google Drive API** under APIs & Services → Library
-4. Go to APIs & Services → Credentials → Create Credentials → Service Account
+3. Enable **Google Sheets API** and **Google Drive API**
+4. Go to Credentials → Create Credentials → Service Account
 5. Download the JSON key → save as `service_account.json` in the project folder
-6. Open your Google Spreadsheet → Share → paste the service account's `client_email` → set role to **Editor**
+6. Share your spreadsheet with the service account `client_email` → set as **Editor**
 
 ---
 
@@ -175,7 +243,7 @@ That's it. No code changes needed.
 ScoutBot/
 ├── run.py                             # Main entry point
 ├── notify.py                          # Reads sheet, builds and sends email digest
-├── requirements.txt                   # Python dependencies
+├── requirements.txt                   # Python dependencies with pinned versions
 ├── .env.example                       # Credentials template (safe to commit)
 ├── .env                               # Your actual credentials (gitignored)
 ├── service_account.json               # Google service account key (gitignored)
@@ -184,24 +252,25 @@ ScoutBot/
 ├── setup_cron.py                      # Optional: sets up a cron job
 ├── README.md                          # This file
 ├── CONTRIBUTING.md                    # How to contribute
+├── CODE_REFERENCE.md                  # Every class, function, and variable explained
 └── scoutbot/                          # Scrapy project package
     ├── __init__.py
     ├── items.py                       # Data field definitions (OpportunityItem)
     ├── pipelines.py                   # DedupePipeline + SheetsPipeline
-    ├── settings.py                    # Scrapy settings and configuration
+    ├── settings.py                    # Scrapy engine configuration
     └── spiders/
         ├── __init__.py
-        └── opportunities_spider.py   # Main scraping spider
+        └── opportunities_spider.py    # Main scraping spider
 ```
 
 ---
 
 ## Contributing
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full contribution guide — including how to add new sources, how to submit pull requests, and the project's code of conduct.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide — how to add sources, submit pull requests, and the project's code of conduct.
 
 ---
 
 ## License
 
-MIT License — free to use, modify, and distribute.
+MIT License — free to use, modify, and distribute with attribution.
