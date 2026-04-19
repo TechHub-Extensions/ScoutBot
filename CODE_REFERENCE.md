@@ -4,6 +4,74 @@ This document explains every file, class, function, and variable in the ScoutBot
 
 ---
 
+## Technology Stack
+
+Everything in ScoutBot is written in **Python 3.11**. Below is every library and external service used — what role it plays and why it was chosen.
+
+### Core Language
+
+| Technology | Version | Role in ScoutBot |
+|-----------|---------|-----------------|
+| **Python** | 3.11 | The entire bot is written in Python. Chosen because it has the best ecosystem for scraping, automation, and data work — and it is beginner-accessible. |
+
+### Web Scraping Engine
+
+| Library | Version | Role in ScoutBot |
+|---------|---------|-----------------|
+| **Scrapy** | 2.15.0 | The heart of the bot. Scrapy is a complete web crawling framework — it visits URLs, downloads pages, extracts data, runs the data through pipelines, and handles rate-limiting and retries automatically. All scraping logic lives inside a Scrapy project. |
+| **lxml** | 6.1.0 | A fast HTML/XML parser. Scrapy uses it internally to parse downloaded web pages. You do not interact with this directly. |
+| **cssselect** | 1.2.0 | Enables Scrapy to use CSS selectors (e.g. `h2 a::text`) to locate HTML elements. Works behind the scenes when the spider uses `.css()`. |
+| **requests** | 2.33.1 | A simple HTTP library used for any direct web requests outside of Scrapy (utility scripts, health checks). |
+
+### Google Sheets Integration
+
+| Library | Version | Role in ScoutBot |
+|---------|---------|-----------------|
+| **gspread** | 6.2.1 | The main interface for reading and writing to Google Sheets. Used in `SheetsPipeline` to check existing rows and append new opportunities. |
+| **google-auth** | 2.49.2 | Google's official library for authenticating with Google services. Handles the service account credentials (the JSON key file) that give ScoutBot access to the spreadsheet. |
+| **google-auth-oauthlib** | 1.2.0 | Adds OAuth 2.0 support to google-auth. Required by gspread to authenticate with a service account. |
+| **google-auth-httplib2** | 0.2.0 | An HTTP transport layer for Google authentication. Connects the auth library to the API client. |
+| **google-api-python-client** | 2.127.0 | Google's official Python client for all Google APIs. Provides the underlying HTTP transport that gspread and google-auth use to communicate with Google Sheets and Drive. |
+
+### Email Sending
+
+| Tool | Version | Role in ScoutBot |
+|------|---------|-----------------|
+| **smtplib** | Built-in (no install) | Python's standard library for sending emails over SMTP. Used in `notify.py` to connect to Gmail and deliver the digest. |
+| **email.mime** | Built-in (no install) | Python's standard library for building email messages — creates the HTML email body and sets headers (From, To, Subject). |
+| **Gmail SMTP** | External service | The actual email delivery infrastructure. ScoutBot logs into Gmail's SMTP server (`smtp.gmail.com` on port 465) using an App Password and sends the email from there. Free and reliable. |
+
+### Scheduling
+
+| Library | Version | Role in ScoutBot |
+|---------|---------|-----------------|
+| **schedule** | 1.2.2 | A lightweight Python library for running functions at set times. Used in `run.py` to trigger the full pipeline at 7:00 AM and 7:00 PM every day. No background process, daemon, or cron needed — just a loop. |
+
+### Configuration & Security
+
+| Library | Version | Role in ScoutBot |
+|---------|---------|-----------------|
+| **python-dotenv** | 1.2.2 | Reads a `.env` file and loads its contents as environment variables into Python. This is how ScoutBot accesses credentials (email, password, spreadsheet ID) without hardcoding them in source files. |
+
+### External Services (APIs)
+
+| Service | Role in ScoutBot |
+|---------|-----------------|
+| **Google Sheets API** | The API that lets ScoutBot read from and write to the shared Google Spreadsheet. Enabled in Google Cloud Console. |
+| **Google Drive API** | Required alongside the Sheets API for service account access. Without it, authentication fails even if only Sheets is needed. |
+| **Google Service Account** | A non-human Google identity (like a robot account) that the bot uses to authenticate without any user needing to log in. Credentials live in `service_account.json`. |
+| **Gmail** | The email provider. ScoutBot sends emails from a Gmail account using a 16-character App Password (not the account's real password). |
+
+### Version Control & Collaboration
+
+| Tool | Role in ScoutBot |
+|------|-----------------|
+| **Git** | Tracks every change to the codebase |
+| **GitHub** | Hosts the repository at [TechHub-Extensions/ScoutBot](https://github.com/TechHub-Extensions/ScoutBot) |
+| **.gitignore** | Ensures `.env` and `service_account.json` (which contain real credentials) are never committed to GitHub |
+
+---
+
 ## File Map
 
 ```
