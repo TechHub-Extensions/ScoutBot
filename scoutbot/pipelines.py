@@ -7,6 +7,7 @@ Scrapy pipelines:
 import os
 import logging
 from dotenv import load_dotenv
+from scrapy.exceptions import DropItem
 
 load_dotenv()
 
@@ -33,25 +34,36 @@ LINK_COL_INDEX = 7  # 0-based index of "Application Link" in SHEET_HEADERS
 
 
 class DedupePipeline:
+    """Drops items whose link has already been seen in this run."""
+
     def __init__(self):
         self.seen = set()
 
-    def process_item(self, item, spider):
+    @classmethod
+    def from_crawler(cls, crawler):
+        return cls()
+
+    def process_item(self, item, spider=None):
         link = (item.get("application_link") or "").strip()
         if not link or link in self.seen:
-            from scrapy.exceptions import DropItem
             raise DropItem(f"Duplicate/empty link: {link}")
         self.seen.add(link)
         return item
 
 
 class SheetsPipeline:
+    """Appends new opportunities to Google Sheets, skipping already-present links."""
+
     def __init__(self):
         self.sheet = None
         self.existing_links = set()
         self.new_rows = []
 
-    def open_spider(self, spider):
+    @classmethod
+    def from_crawler(cls, crawler):
+        return cls()
+
+    def open_spider(self, spider=None):
         try:
             import gspread
             from google.oauth2.service_account import Credentials
@@ -70,32 +82,29 @@ class SheetsPipeline:
 
             creds = Credentials.from_service_account_file(json_path, scopes=scopes)
             client = gspread.authorize(creds)
-            spreadsheet = client.open_by_key(SPREADSHEET_ID)
-            self.sheet = spreadsheet.sheet1
+            self.sheet = client.open_by_key(SPREADSHEET_ID).sheet1
 
             all_values = self.sheet.get_all_values()
             if not all_values:
                 self.sheet.append_row(SHEET_HEADERS)
                 logger.info("SheetsPipeline: Header row added.")
             else:
-                header = all_values[0]
-                if header != SHEET_HEADERS:
-                    logger.warning("SheetsPipeline: Header mismatch — sheet may have different columns.")
                 for row in all_values[1:]:
                     if len(row) > LINK_COL_INDEX and row[LINK_COL_INDEX].strip():
                         self.existing_links.add(row[LINK_COL_INDEX].strip())
 
             logger.info(f"SheetsPipeline: {len(self.existing_links)} existing entries loaded.")
+
         except Exception as exc:
             logger.error(f"SheetsPipeline: Failed to connect to Google Sheets — {exc}")
             self.sheet = None
 
-    def process_item(self, item, spider):
+    def process_item(self, item, spider=None):
         if self.sheet is None:
             return item
+
         link = (item.get("application_link") or "").strip()
         if link in self.existing_links:
-            from scrapy.exceptions import DropItem
             raise DropItem(f"Already in sheet: {link}")
 
         row = [
@@ -115,12 +124,12 @@ class SheetsPipeline:
         self.existing_links.add(link)
         return item
 
-    def close_spider(self, spider):
+    def close_spider(self, spider=None):
         if not self.new_rows or self.sheet is None:
             logger.info("SheetsPipeline: No new rows to write.")
             return
         try:
             self.sheet.append_rows(self.new_rows, value_input_option="USER_ENTERED")
-            logger.info(f"SheetsPipeline: {len(self.new_rows)} new rows added.")
+            logger.info(f"SheetsPipeline: {len(self.new_rows)} new rows added to Google Sheets.")
         except Exception as exc:
             logger.error(f"SheetsPipeline: Write error — {exc}")
