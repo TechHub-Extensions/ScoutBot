@@ -2,10 +2,16 @@
 ScoutBot main runner.
 
 Usage:
-    python run.py              # Full pipeline: scrape → update sheet → email
+    python run.py              # Full pipeline: scrape → cleanup closed → update sheet → email
     python run.py --scrape     # Only scrape (update sheet, no email)
+    python run.py --cleanup    # Only remove closed opportunities from the sheet
     python run.py --notify     # Only send email (no scraping)
-    python run.py --schedule   # Run on schedule: scrape + email at 7AM and 7PM daily
+    python run.py --schedule   # Run on schedule: full pipeline at 7AM and 7PM daily
+
+The full pipeline order is:
+    1. Scrape every source for new opportunities  → adds new rows
+    2. Clean closed opportunities                 → removes expired rows
+    3. Send email digest                          → sends the live list
 """
 
 import argparse
@@ -45,7 +51,15 @@ def run_all_spiders():
         run_spider(spider)
 
 
+def run_cleanup():
+    """Remove closed/expired opportunities from the Google Sheet."""
+    sys.path.insert(0, SCRIPT_DIR)
+    from cleanup import cleanup
+    cleanup()
+
+
 def run_notify():
+    """Read the sheet and email the digest to all subscribers."""
     sys.path.insert(0, SCRIPT_DIR)
     from notify import main as notify_main
     notify_main()
@@ -54,6 +68,7 @@ def run_notify():
 def full_pipeline():
     logger.info("run.py: === Full pipeline START ===")
     run_all_spiders()
+    run_cleanup()
     run_notify()
     logger.info("run.py: === Full pipeline COMPLETE ===")
 
@@ -62,7 +77,7 @@ def run_schedule():
     import schedule
     import time
 
-    logger.info("run.py: Scheduler started. Will run at 07:00 and 19:00 daily.")
+    logger.info("run.py: Scheduler started. Will run at 07:00 and 19:00 daily (local time).")
     schedule.every().day.at("07:00").do(full_pipeline)
     schedule.every().day.at("19:00").do(full_pipeline)
 
@@ -77,12 +92,15 @@ def run_schedule():
 def main():
     parser = argparse.ArgumentParser(description="ScoutBot")
     parser.add_argument("--scrape", action="store_true", help="Only scrape (update sheet, no email)")
+    parser.add_argument("--cleanup", action="store_true", help="Only remove closed opportunities from the sheet")
     parser.add_argument("--notify", action="store_true", help="Only send email")
     parser.add_argument("--schedule", action="store_true", help="Run on schedule (7AM + 7PM daily)")
     args = parser.parse_args()
 
     if args.scrape:
         run_all_spiders()
+    elif args.cleanup:
+        run_cleanup()
     elif args.notify:
         run_notify()
     elif args.schedule:
