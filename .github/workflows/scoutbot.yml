@@ -1,0 +1,63 @@
+name: ScoutBot — Twice-Daily Run
+
+# Runs the full ScoutBot pipeline at 7:00 AM and 7:00 PM Lagos time.
+# Lagos is UTC+1, so 07:00 Lagos = 06:00 UTC and 19:00 Lagos = 18:00 UTC.
+#
+# It will:
+#   1. Scrape every source for new opportunities
+#   2. Remove closed/expired opportunities from the Google Sheet
+#   3. Email the fresh digest to every recipient in RECIPIENT_EMAILS
+#
+# You can also trigger it manually from the GitHub Actions tab using "Run workflow".
+
+on:
+  schedule:
+    - cron: '0 6 * * *'    # 07:00 Africa/Lagos
+    - cron: '0 18 * * *'   # 19:00 Africa/Lagos
+  workflow_dispatch:
+
+jobs:
+  run-scoutbot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore Google service account JSON
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}" | base64 -d > service_account.json
+
+      - name: Build .env file from secrets
+        run: |
+          cat > .env <<EOF
+          SENDER_EMAIL=${{ secrets.SENDER_EMAIL }}
+          GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
+          SPREADSHEET_ID=${{ secrets.SPREADSHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON=service_account.json
+          RECIPIENT_EMAILS=${{ secrets.RECIPIENT_EMAILS }}
+          EOF
+
+      - name: Run ScoutBot full pipeline
+        run: python run.py
+
+      - name: Upload logs as artifact (for debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scoutbot-logs
+          path: |
+            scoutbot.log
+            scrapy.log
+          if-no-files-found: ignore
+          retention-days: 7
