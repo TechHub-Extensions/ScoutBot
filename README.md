@@ -204,6 +204,39 @@ python run.py --notify
 
 ---
 
+## Production Schedule (GitHub Actions)
+
+ScoutBot runs **automatically twice every day** via GitHub Actions — no server, laptop, or hosting needed.
+
+The workflow is defined in [`.github/workflows/scoutbot.yml`](./.github/workflows/scoutbot.yml) and runs on this schedule:
+
+| Time (Lagos / WAT) | UTC | What happens |
+|--------------------|-----|--------------|
+| 07:00 AM | 06:00 | Full pipeline: scrape → cleanup closed → email digest |
+| 07:00 PM | 18:00 | Full pipeline: scrape → cleanup closed → email digest |
+
+You can also trigger it manually any time from the **Actions** tab on GitHub → "ScoutBot — Twice-Daily Run" → **Run workflow**.
+
+### Required GitHub Secrets
+
+These five secrets must be set in **Settings → Secrets and variables → Actions** for the workflow to run:
+
+| Secret name | What it holds |
+|-------------|---------------|
+| `SENDER_EMAIL` | The Gmail address used to send the digest |
+| `GMAIL_APP_PASSWORD` | Gmail 16-character app password (no spaces) |
+| `SPREADSHEET_ID` | The Google Sheet ID |
+| `RECIPIENT_EMAILS` | Comma-separated list of recipient emails |
+| `GOOGLE_SERVICE_ACCOUNT_JSON_B64` | Base64-encoded contents of `service_account.json` |
+
+To produce the base64 value for the service account file:
+
+```bash
+base64 -w 0 service_account.json
+```
+
+---
+
 ## Adding Email Recipients
 
 Open `.env` and add the new email to `RECIPIENT_EMAILS`, separated by commas:
