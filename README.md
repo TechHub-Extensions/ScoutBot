@@ -113,21 +113,34 @@ ScoutBot is built entirely in Python. Below is every technology, library, and ex
 4. **Emails** a formatted HTML digest to all subscribers at **7:00 AM and 7:00 PM** every day
 
 ### Categories Covered
-Scholarships · Fellowships · Internships · Bootcamps · Apprenticeships · Conferences · Grants · Competitions · Awards
+
+**For students:**
+Scholarships · Fellowships · Internships · Bootcamps · Apprenticeships · Conferences · Awards
+
+**For startups & founders:**
+Grants · VC Funding · Accelerators · Incubators · Pitch Competitions · Hackathons · Innovation Awards
 
 ### Industries Covered
-Tech · Engineering · Law · Finance · Medicine · General
+Startup · Tech · Engineering · Law · Finance · Medicine · General
 
 ### Sources Scraped
-- afterschoolafrica.com
-- opportunitydesk.org
-- opportunitiesforafricans.com
-- scholars4dev.com
-- scholarshipregion.com
-- scholarshipair.com
-- opportunities.youthhubafrica.org
-- myschoolng.com
-- *(contributors can add more — see CONTRIBUTING.md)*
+
+**Student opportunities**
+- afterschoolafrica.com — scholarships, fellowships, internships, competitions
+- opportunitydesk.org — scholarships, fellowships, internships
+- opportunitiesforafricans.com — scholarships, fellowships, internships
+- scholars4dev.com — international scholarships for Africans
+- scholarshipregion.com — Nigerian scholarships
+- opportunities.youthhubafrica.org — youth-focused opportunities
+- myschoolng.com — Nigerian student scholarships
+
+**Startup funding** *(grants, VC, accelerators, incubators, pitch comps)*
+- opportunitydesk.org — grants, awards, competitions, entrepreneurship
+- opportunitiesforafricans.com — grants, competitions, entrepreneurship
+- afterschoolafrica.com — grants, business opportunities
+- opportunities.youthhubafrica.org — grants, competitions
+
+*(contributors can add more — see CONTRIBUTING.md)*
 
 ---
 
