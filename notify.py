@@ -1,10 +1,20 @@
 """
 Sends an HTML email digest of the latest opportunities to all recipients.
+
+To stay within Gmail's per-message recipient cap and to avoid being throttled,
+recipients are sent in batches with a pause between each batch.
+
+Configurable via environment variables:
+    EMAIL_BATCH_SIZE       — recipients per batch (default 30)
+    EMAIL_BATCH_PAUSE_SEC  — seconds to wait between batches (default 360 = 6 min)
+
+Each batch uses BCC so subscribers do not see each other's email addresses.
 """
 
 import os
 import smtplib
 import logging
+import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from dotenv import load_dotenv
@@ -17,14 +27,22 @@ SENDER_EMAIL = os.getenv("SENDER_EMAIL", "")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").replace(" ", "")
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID", "1pLCEvDI1btjtOe1H3VgzCqpC6R0nRsEtnTwQhY6BqmU")
 SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "service_account.json")
+
 RECIPIENT_EMAILS = [
-    e.strip()
+    e.strip().lower()
     for e in os.getenv(
         "RECIPIENT_EMAILS",
         "tegazion7@gmail.com,successolamide46@gmail.com,ayanfeoluwaalalade2000@gmail.com,kamsirichard1960@gmail.com",
     ).split(",")
-    if e.strip()
+    if e.strip() and "@" in e
 ]
+# Remove duplicates while preserving order
+_seen = set()
+RECIPIENT_EMAILS = [e for e in RECIPIENT_EMAILS if not (e in _seen or _seen.add(e))]
+
+EMAIL_BATCH_SIZE = int(os.getenv("EMAIL_BATCH_SIZE", "30"))
+EMAIL_BATCH_PAUSE_SEC = int(os.getenv("EMAIL_BATCH_PAUSE_SEC", "360"))  # 6 minutes
+
 SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit"
 
 
@@ -63,6 +81,10 @@ def build_html(opps):
         "Apprenticeship": "#784212",
         "Conference": "#1f618d",
         "Grant": "#145a32",
+        "VC Funding": "#7b241c",
+        "Accelerator": "#943126",
+        "Incubator": "#a04000",
+        "Pitch Competition": "#922b21",
         "Competition": "#922b21",
         "Award": "#7d6608",
         "Opportunity": "#555",
@@ -95,7 +117,7 @@ def build_html(opps):
   <div style="background:#1a5276;color:#fff;padding:20px 24px;border-radius:8px 8px 0 0;">
     <h1 style="margin:0;font-size:22px;">ScoutBot</h1>
     <p style="margin:4px 0 0;font-size:14px;opacity:0.85;">
-      Latest Opportunities for Nigerian Students &mdash; Engineering, Tech, Law &amp; More
+      Latest Opportunities for Nigerian Students &amp; Founders &mdash; Scholarships, Fellowships, Grants, VC, Accelerators &amp; More
     </p>
   </div>
   <div style="background:#f9f9f9;padding:16px 24px;border:1px solid #ddd;border-top:none;">
@@ -127,27 +149,71 @@ def build_html(opps):
 """
 
 
+def _send_one_batch(server, html_body, subject, batch_recipients):
+    """Send one email message to a single batch using BCC."""
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = f"ScoutBot <{SENDER_EMAIL}>"
+    msg["To"] = f"ScoutBot Subscribers <{SENDER_EMAIL}>"  # generic visible "To"
+    # BCC keeps each subscriber's address private from everyone else
+    msg["Bcc"] = ", ".join(batch_recipients)
+    msg.attach(MIMEText(html_body, "html"))
+
+    server.sendmail(SENDER_EMAIL, batch_recipients, msg.as_string())
+
+
 def send_email(opps):
+    """
+    Send the digest in batches of EMAIL_BATCH_SIZE, pausing
+    EMAIL_BATCH_PAUSE_SEC between batches.
+    """
     if not SENDER_EMAIL or not GMAIL_APP_PASSWORD:
         logger.error("notify: SENDER_EMAIL or GMAIL_APP_PASSWORD not set.")
         return False
 
-    subject = f"ScoutBot \u2014 {len(opps)} Latest Opportunities for Nigerian Students"
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = f"ScoutBot <{SENDER_EMAIL}>"
-    msg["To"] = ", ".join(RECIPIENT_EMAILS)
-    msg.attach(MIMEText(build_html(opps), "html"))
-
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(SENDER_EMAIL, GMAIL_APP_PASSWORD)
-            server.sendmail(SENDER_EMAIL, RECIPIENT_EMAILS, msg.as_string())
-        logger.info(f"notify: Email sent successfully to {RECIPIENT_EMAILS}")
-        return True
-    except Exception as exc:
-        logger.error(f"notify: Email failed — {exc}")
+    if not RECIPIENT_EMAILS:
+        logger.warning("notify: No recipients configured.")
         return False
+
+    subject = f"ScoutBot \u2014 {len(opps)} Latest Opportunities for Nigerian Students & Founders"
+    html_body = build_html(opps)
+
+    batches = [
+        RECIPIENT_EMAILS[i : i + EMAIL_BATCH_SIZE]
+        for i in range(0, len(RECIPIENT_EMAILS), EMAIL_BATCH_SIZE)
+    ]
+    total_batches = len(batches)
+    logger.info(
+        f"notify: Sending to {len(RECIPIENT_EMAILS)} recipients in "
+        f"{total_batches} batches of up to {EMAIL_BATCH_SIZE} "
+        f"(pause {EMAIL_BATCH_PAUSE_SEC}s = {EMAIL_BATCH_PAUSE_SEC // 60} min between batches)."
+    )
+
+    successes = 0
+    for i, batch in enumerate(batches, start=1):
+        try:
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                server.login(SENDER_EMAIL, GMAIL_APP_PASSWORD)
+                _send_one_batch(server, html_body, subject, batch)
+            successes += len(batch)
+            logger.info(
+                f"notify: Batch {i}/{total_batches} sent successfully "
+                f"({len(batch)} recipients)."
+            )
+        except Exception as exc:
+            logger.error(f"notify: Batch {i}/{total_batches} failed — {exc}")
+
+        # Pause between batches (but not after the last one)
+        if i < total_batches:
+            logger.info(
+                f"notify: Pausing {EMAIL_BATCH_PAUSE_SEC}s before batch {i + 1}..."
+            )
+            time.sleep(EMAIL_BATCH_PAUSE_SEC)
+
+    logger.info(
+        f"notify: Done. {successes}/{len(RECIPIENT_EMAILS)} recipients reached."
+    )
+    return successes > 0
 
 
 def main():
