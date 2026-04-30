@@ -19,7 +19,8 @@ on:
 jobs:
   run-scoutbot:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Long timeout: scrape ~10 min + 4 batches × 6-min pauses = ~30+ min total
+    timeout-minutes: 60
 
     steps:
       - name: Check out code
