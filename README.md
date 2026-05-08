@@ -53,8 +53,8 @@ PayPal or Wise
 
 | | |
 |---|---|
-| PayPal | *(contact us to confirm)* |
-| Wise | *(contact us to confirm)* |
+| PayPal | STILL ON THIS |
+| Wise | STILL ON THIS |
 
 </td>
 </tr>
