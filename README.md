@@ -14,9 +14,7 @@ ScoutBot emails a curated digest of the latest opportunities at **7:00 AM and 7:
 
 No app, no login, no fee. One form fill and you are on the list.
 
-📋 [View the live opportunity spreadsheet →](https://docs.google.com/spreadsheets/d/1pLCEvDI1btjtOe1H3VgzCqpC6R0nRsEtnTwQhY6BqmU/edit)
 
----
 
 ## 💛 Support ScoutBot
 
