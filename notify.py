@@ -1,8 +1,13 @@
 """
 Sends an HTML email digest of the latest opportunities to all recipients.
 
-To stay within Gmail's per-message recipient cap and to avoid being throttled,
-recipients are sent in batches with a pause between each batch.
+Recipients are loaded from two sources (merged and deduplicated automatically):
+  1. The "Subscribers" tab in the Google Spreadsheet (column B = Email).
+     Anyone added to this tab between runs is picked up at the very next send.
+  2. The RECIPIENT_EMAILS environment variable (comma-separated fallback list).
+
+To stay within Gmail's per-message recipient cap the list is split into
+batches with a configurable pause between each batch.
 
 Configurable via environment variables:
     EMAIL_BATCH_SIZE       — recipients per batch (default 30)
@@ -28,7 +33,7 @@ GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").replace(" ", "")
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID", "1pLCEvDI1btjtOe1H3VgzCqpC6R0nRsEtnTwQhY6BqmU")
 SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "service_account.json")
 
-RECIPIENT_EMAILS = [
+_ENV_EMAILS = [
     e.strip().lower()
     for e in os.getenv(
         "RECIPIENT_EMAILS",
@@ -36,14 +41,13 @@ RECIPIENT_EMAILS = [
     ).split(",")
     if e.strip() and "@" in e
 ]
-# Remove duplicates while preserving order
-_seen = set()
-RECIPIENT_EMAILS = [e for e in RECIPIENT_EMAILS if not (e in _seen or _seen.add(e))]
 
 EMAIL_BATCH_SIZE = int(os.getenv("EMAIL_BATCH_SIZE", "30"))
 EMAIL_BATCH_PAUSE_SEC = int(os.getenv("EMAIL_BATCH_PAUSE_SEC", "360"))  # 6 minutes
 
 SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit"
+FUNDRAISING_DOC = "https://docs.google.com/document/d/1SqxaAg4tvuWp3LgGzqSSSw4_bxBWHmgmrQ9IyyKHtE8/edit"
+GITHUB_URL = "https://github.com/TechHub-Extensions/ScoutBot"
 
 
 def _resolve_json_path():
@@ -53,17 +57,65 @@ def _resolve_json_path():
     return p
 
 
+def _get_sheet_client():
+    import gspread
+    from google.oauth2.service_account import Credentials
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    creds = Credentials.from_service_account_file(_resolve_json_path(), scopes=scopes)
+    return gspread.authorize(creds)
+
+
+def fetch_subscribers_from_sheet():
+    """
+    Read all emails from the 'Subscribers' tab (column B, skipping header rows).
+    Returns a list of lowercase email strings.
+    Falls back to [] if the tab doesn't exist or is unreachable.
+    """
+    try:
+        client = _get_sheet_client()
+        spreadsheet = client.open_by_key(SPREADSHEET_ID)
+        try:
+            sub_sheet = spreadsheet.worksheet("Subscribers")
+        except Exception:
+            logger.warning("notify: No 'Subscribers' tab found — using env list only.")
+            return []
+        # Column B contains emails; rows 1 and 2 are header/note — skip them
+        all_values = sub_sheet.col_values(2)  # 1-indexed column B
+        emails = [
+            v.strip().lower()
+            for v in all_values[2:]  # skip row 1 (header) and row 2 (note)
+            if v.strip() and "@" in v
+        ]
+        logger.info(f"notify: Loaded {len(emails)} subscribers from Subscribers tab.")
+        return emails
+    except Exception as exc:
+        logger.error(f"notify: Could not read Subscribers tab: {exc}")
+        return []
+
+
+def build_recipient_list():
+    """
+    Merge Subscribers tab + env variable list, deduplicate, preserve order.
+    Sheet subscribers come first so new sign-ups are always included.
+    """
+    sheet_emails = fetch_subscribers_from_sheet()
+    combined = sheet_emails + _ENV_EMAILS
+    seen = set()
+    result = []
+    for e in combined:
+        if e and e not in seen:
+            seen.add(e)
+            result.append(e)
+    logger.info(f"notify: Total unique recipients: {len(result)}")
+    return result
+
+
 def fetch_recent_opportunities(limit=30):
     try:
-        import gspread
-        from google.oauth2.service_account import Credentials
-
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive",
-        ]
-        creds = Credentials.from_service_account_file(_resolve_json_path(), scopes=scopes)
-        client = gspread.authorize(creds)
+        client = _get_sheet_client()
         sheet = client.open_by_key(SPREADSHEET_ID).sheet1
         rows = sheet.get_all_records()
         return rows[-limit:] if len(rows) > limit else rows
@@ -96,7 +148,10 @@ def build_html(opps):
         title = opp.get("Title", "Untitled")
         cat = opp.get("Category", "Opportunity")
         color = category_colors.get(cat, "#555")
-        badge = f'<span style="background:{color};color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;">{cat}</span>'
+        badge = (
+            f'<span style="background:{color};color:#fff;'
+            f'padding:2px 8px;border-radius:4px;font-size:11px;">{cat}</span>'
+        )
         rows_html += f"""
         <tr>
           <td style="padding:8px 6px;border-bottom:1px solid #eee;">
@@ -114,12 +169,15 @@ def build_html(opps):
 <html>
 <head><meta charset="utf-8"></head>
 <body style="font-family:Arial,sans-serif;color:#222;max-width:900px;margin:auto;padding:20px;">
+
   <div style="background:#1a5276;color:#fff;padding:20px 24px;border-radius:8px 8px 0 0;">
     <h1 style="margin:0;font-size:22px;">ScoutBot</h1>
     <p style="margin:4px 0 0;font-size:14px;opacity:0.85;">
-      Latest Opportunities for Nigerian Students &amp; Founders &mdash; Scholarships, Fellowships, Grants, VC, Accelerators &amp; More
+      Latest Opportunities for Nigerian Students &amp; Founders &mdash;
+      Scholarships, Fellowships, Grants, VC, Accelerators &amp; More
     </p>
   </div>
+
   <div style="background:#f9f9f9;padding:16px 24px;border:1px solid #ddd;border-top:none;">
     <p style="margin:0 0 12px;">
       Here are the <strong>{len(opps)}</strong> most recent opportunities found by ScoutBot.
@@ -139,30 +197,43 @@ def build_html(opps):
       <tbody>{rows_html}</tbody>
     </table>
   </div>
-  <div style="padding:12px 24px;font-size:11px;color:#aaa;border:1px solid #ddd;border-top:none;border-radius:0 0 8px 8px;">
-    ScoutBot &mdash; Open Source |
-    <a href="https://github.com/TechHub-Extensions/ScoutBot" style="color:#aaa;">GitHub</a>
-    &mdash; You receive this because you are subscribed to ScoutBot alerts.
+
+  <div style="background:#fff8e1;padding:14px 24px;border:1px solid #ffe082;border-top:none;font-size:12px;">
+    <strong style="color:#b7950b;">Know someone who should receive this?</strong>
+    Forward this email or send their name &amp; email to
+    <a href="mailto:kamsirichard1960@gmail.com?subject=ScoutBot%20Subscribe" style="color:#1a5276;">
+      kamsirichard1960@gmail.com
+    </a>
+    with subject <em>ScoutBot Subscribe</em> — they'll be added before the next send.
+    &nbsp;|&nbsp;
+    <a href="{FUNDRAISING_DOC}" style="color:#1a5276;">Support ScoutBot financially &rarr;</a>
   </div>
+
+  <div style="padding:12px 24px;font-size:11px;color:#aaa;border:1px solid #ddd;border-top:none;border-radius:0 0 8px 8px;">
+    ScoutBot &mdash; Open Source &nbsp;|&nbsp;
+    <a href="{GITHUB_URL}" style="color:#aaa;">GitHub</a>
+    &nbsp;|&nbsp;
+    <a href="{SHEET_URL}" style="color:#aaa;">Full Opportunity Sheet</a>
+    &nbsp;&mdash;&nbsp; You receive this because you are subscribed to ScoutBot alerts.
+  </div>
+
 </body>
 </html>
 """
 
 
 def _send_one_batch(server, html_body, subject, batch_recipients):
-    """Send one email message to a single batch using BCC."""
+    """Send one email to a batch using BCC (recipients stay private)."""
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = f"ScoutBot <{SENDER_EMAIL}>"
-    msg["To"] = f"ScoutBot Subscribers <{SENDER_EMAIL}>"  # generic visible "To"
-    # BCC keeps each subscriber's address private from everyone else
+    msg["To"] = f"ScoutBot Subscribers <{SENDER_EMAIL}>"
     msg["Bcc"] = ", ".join(batch_recipients)
     msg.attach(MIMEText(html_body, "html"))
-
     server.sendmail(SENDER_EMAIL, batch_recipients, msg.as_string())
 
 
-def send_email(opps):
+def send_email(opps, recipients):
     """
     Send the digest in batches of EMAIL_BATCH_SIZE, pausing
     EMAIL_BATCH_PAUSE_SEC between batches.
@@ -171,22 +242,22 @@ def send_email(opps):
         logger.error("notify: SENDER_EMAIL or GMAIL_APP_PASSWORD not set.")
         return False
 
-    if not RECIPIENT_EMAILS:
-        logger.warning("notify: No recipients configured.")
+    if not recipients:
+        logger.warning("notify: No recipients found.")
         return False
 
     subject = f"ScoutBot \u2014 {len(opps)} Latest Opportunities for Nigerian Students & Founders"
     html_body = build_html(opps)
 
     batches = [
-        RECIPIENT_EMAILS[i : i + EMAIL_BATCH_SIZE]
-        for i in range(0, len(RECIPIENT_EMAILS), EMAIL_BATCH_SIZE)
+        recipients[i : i + EMAIL_BATCH_SIZE]
+        for i in range(0, len(recipients), EMAIL_BATCH_SIZE)
     ]
     total_batches = len(batches)
     logger.info(
-        f"notify: Sending to {len(RECIPIENT_EMAILS)} recipients in "
-        f"{total_batches} batches of up to {EMAIL_BATCH_SIZE} "
-        f"(pause {EMAIL_BATCH_PAUSE_SEC}s = {EMAIL_BATCH_PAUSE_SEC // 60} min between batches)."
+        f"notify: Sending to {len(recipients)} recipients in "
+        f"{total_batches} batch(es) of up to {EMAIL_BATCH_SIZE} "
+        f"({EMAIL_BATCH_PAUSE_SEC}s pause between batches)."
     )
 
     successes = 0
@@ -197,22 +268,17 @@ def send_email(opps):
                 _send_one_batch(server, html_body, subject, batch)
             successes += len(batch)
             logger.info(
-                f"notify: Batch {i}/{total_batches} sent successfully "
+                f"notify: Batch {i}/{total_batches} sent "
                 f"({len(batch)} recipients)."
             )
         except Exception as exc:
             logger.error(f"notify: Batch {i}/{total_batches} failed — {exc}")
 
-        # Pause between batches (but not after the last one)
         if i < total_batches:
-            logger.info(
-                f"notify: Pausing {EMAIL_BATCH_PAUSE_SEC}s before batch {i + 1}..."
-            )
+            logger.info(f"notify: Pausing {EMAIL_BATCH_PAUSE_SEC}s before batch {i + 1}...")
             time.sleep(EMAIL_BATCH_PAUSE_SEC)
 
-    logger.info(
-        f"notify: Done. {successes}/{len(RECIPIENT_EMAILS)} recipients reached."
-    )
+    logger.info(f"notify: Done. {successes}/{len(recipients)} recipients reached.")
     return successes > 0
 
 
@@ -223,7 +289,8 @@ def main():
     if not opps:
         logger.warning("notify: Sheet empty or unreachable. No email sent.")
         return
-    send_email(opps)
+    recipients = build_recipient_list()
+    send_email(opps, recipients)
 
 
 if __name__ == "__main__":
