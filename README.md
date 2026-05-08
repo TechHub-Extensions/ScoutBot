@@ -4,6 +4,47 @@
 
 ---
 
+## 📬 Subscribe — Get Opportunities in Your Inbox (Free)
+
+ScoutBot emails a curated digest of the latest opportunities to subscribers at **7:00 AM and 7:00 PM Lagos time, every day**.
+
+**To subscribe**, send an email to:
+> **kamsirichard1960@gmail.com** — Subject: `ScoutBot Subscribe`
+
+Include your name and email address. You will be added to the subscriber list and will receive updates from the very next scheduled run. No app, no login, no fee — ever.
+
+📋 [View the live subscriber list & opportunity spreadsheet →](https://docs.google.com/spreadsheets/d/1pLCEvDI1btjtOe1H3VgzCqpC6R0nRsEtnTwQhY6BqmU/edit)
+
+---
+
+## 💛 Support ScoutBot
+
+ScoutBot is fully open source and free for every user. We are Nigerian students building this on zero budget.
+
+**Our goal:** reach **4,000 Nigerian students** in the next 6 months.
+To do that we need ~**₦2,000,000 (~$1,500 USD)** for Twitter/X advertising.
+
+We welcome two types of support:
+
+### Financial Support
+Read the full fundraising brief (goals, numbers, payment details):
+👉 **[ScoutBot — Fundraising & Support Brief (Google Doc)](https://docs.google.com/document/d/1SqxaAg4tvuWp3LgGzqSSSw4_bxBWHmgmrQ9IyyKHtE8/edit)**
+
+To discuss a sponsorship or contribution, email **kamsirichard1960@gmail.com** — Subject: `ScoutBot Financial Support`.
+
+Sponsors receive named credit in every bi-daily email digest, on this README, and a first conversation on any future ScoutBot product.
+
+### Code / Technical Contribution
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide — adding scraping sources, submitting pull requests, and the code of conduct.
+
+Quick ways to help:
+- ⭐ Star this repository
+- 🔀 Fork and open a pull request
+- 🐛 Report a bug or suggest a feature via GitHub Issues
+- 📣 Share ScoutBot with Nigerian student communities (WhatsApp groups, Discord, Twitter/X)
+
+---
+
 ## Why ScoutBot Exists
 
 Opportunities for Nigerian students — especially in tech and engineering — are scattered across dozens of websites with no single reliable source. ScoutBot exists to solve that. It runs quietly in the background, finds new opportunities as they appear, logs them into a shared spreadsheet, and delivers them straight to people's inboxes.
@@ -31,7 +72,7 @@ All project communication goes through email. These are the primary contacts:
 | Kamsi Richard Ivanna | kamsirichard1960@gmail.com | Founder & Project Lead |
 | Tega | tegazion7@gmail.com | Core Team |
 | Ibukun Ojo | adeojoibukun28@gmail.com | Core Team |
-| David Macaulay |  macaulaydavid999@gmail.com | Core Team |
+| David Macaulay | macaulaydavid999@gmail.com | Core Team |
 
 To reach the team, email **kamsirichard1960@gmail.com** with subject `[ScoutBot] Your Topic Here`.
 
@@ -91,6 +132,7 @@ ScoutBot is built entirely in Python. Below is every technology, library, and ex
 | Service | Purpose |
 |---------|---------|
 | **Google Sheets API** | Stores all scraped opportunities in a shared, human-readable spreadsheet |
+| **Google Docs API** | Used to maintain the fundraising brief document |
 | **Google Drive API** | Required alongside Sheets API for service account access |
 | **Google Service Account** | A non-human Google account that authenticates the bot's access to Sheets without needing a user to log in |
 
@@ -110,7 +152,8 @@ ScoutBot is built entirely in Python. Below is every technology, library, and ex
 1. **Scrapes** 15+ opportunity websites (national and international) using Scrapy
 2. **Deduplicates** — never adds the same opportunity twice
 3. **Updates** a shared Google Spreadsheet in a standardised format
-4. **Emails** a formatted HTML digest to all subscribers at **7:00 AM and 7:00 PM** every day
+4. **Reads** the live Subscribers tab before every send — new sign-ups are automatically included in the next run
+5. **Emails** a formatted HTML digest to all subscribers at **7:00 AM and 7:00 PM** every day, in batches of 30 (BCC for privacy)
 
 ### Categories Covered
 
@@ -239,7 +282,7 @@ These five secrets must be set in **Settings → Secrets and variables → Actio
 | `SENDER_EMAIL` | The Gmail address used to send the digest |
 | `GMAIL_APP_PASSWORD` | Gmail 16-character app password (no spaces) |
 | `SPREADSHEET_ID` | The Google Sheet ID |
-| `RECIPIENT_EMAILS` | Comma-separated list of recipient emails |
+| `RECIPIENT_EMAILS` | Comma-separated fallback list of recipient emails |
 | `GOOGLE_SERVICE_ACCOUNT_JSON_B64` | Base64-encoded contents of `service_account.json` |
 
 To produce the base64 value for the service account file:
@@ -250,15 +293,17 @@ base64 -w 0 service_account.json
 
 ---
 
-## Adding Email Recipients
+## Adding Subscribers
 
-Open `.env` and add the new email to `RECIPIENT_EMAILS`, separated by commas:
+ScoutBot reads the **Subscribers tab** of the Google Spreadsheet before every email run. Any email added to that tab between runs will be included automatically in the next send — no code changes, no redeployment.
 
-```env
-RECIPIENT_EMAILS=kamsirichard1960@gmail.com,newperson@gmail.com
-```
+**To add a new subscriber manually:**
+1. Open the [Google Spreadsheet](https://docs.google.com/spreadsheets/d/1pLCEvDI1btjtOe1H3VgzCqpC6R0nRsEtnTwQhY6BqmU/edit)
+2. Go to the **Subscribers** tab
+3. Add the person's name in column A and email in column B
+4. They will receive the digest at the next 7 AM or 7 PM run
 
-No code changes needed.
+**To subscribe yourself**, email **kamsirichard1960@gmail.com** — Subject: `ScoutBot Subscribe`.
 
 ---
 
@@ -276,7 +321,7 @@ No code changes needed.
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com)
 2. Create or select a project
-3. Enable **Google Sheets API** and **Google Drive API**
+3. Enable **Google Sheets API**, **Google Drive API**, and **Google Docs API**
 4. Go to Credentials → Create Credentials → Service Account
 5. Download the JSON key → save as `service_account.json` in the project folder
 6. Share your spreadsheet with the service account `client_email` → set as **Editor**
@@ -288,7 +333,8 @@ No code changes needed.
 ```
 ScoutBot/
 ├── run.py                             # Main entry point
-├── notify.py                          # Reads sheet, builds and sends email digest
+├── notify.py                          # Reads sheet + subscribers, builds and sends email digest
+├── cleanup.py                         # Removes closed/expired opportunities from the sheet
 ├── requirements.txt                   # Python dependencies with pinned versions
 ├── .env.example                       # Credentials template (safe to commit)
 ├── .env                               # Your actual credentials (gitignored)
@@ -314,6 +360,8 @@ ScoutBot/
 ## Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide — how to add sources, submit pull requests, and the project's code of conduct.
+
+Want to support the project financially instead? See the [Fundraising & Support Brief](https://docs.google.com/document/d/1SqxaAg4tvuWp3LgGzqSSSw4_bxBWHmgmrQ9IyyKHtE8/edit).
 
 ---
 
