@@ -1,0 +1,56 @@
+name: ScoutBot — Welcome Email (Every 2 Days)
+
+# Sends the welcome/intro email to all unique subscribers every 2 days at 8AM Lagos time.
+# Lagos is UTC+1, so 08:00 Lagos = 07:00 UTC.
+# Runs on odd days of the month (1,3,5,...) — effectively every 2 days.
+# Can also be triggered manually from the GitHub Actions tab.
+
+on:
+  schedule:
+    - cron: '0 7 1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31 * *'
+  workflow_dispatch:
+
+jobs:
+  send-welcome:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore Google service account JSON
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}" | base64 -d > service_account.json
+
+      - name: Build .env file from secrets
+        run: |
+          cat > .env <<EOF
+          SENDER_EMAIL=${{ secrets.SENDER_EMAIL }}
+          GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
+          SPREADSHEET_ID=${{ secrets.SPREADSHEET_ID }}
+          FORM_SHEET_ID=1dFcnVvQjWkuYhN1rplICTY0j88KgvGqQ3FzYId2ru4s
+          GOOGLE_SERVICE_ACCOUNT_JSON=service_account.json
+          EOF
+
+      - name: Send welcome email to all subscribers
+        run: python welcome.py
+
+      - name: Upload logs as artifact (for debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: welcome-logs
+          path: |
+            scoutbot.log
+          if-no-files-found: ignore
+          retention-days: 7
