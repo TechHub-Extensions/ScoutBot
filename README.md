@@ -10,7 +10,7 @@ ScoutBot emails a curated digest of the latest opportunities at **7:00 AM and 7:
 
 **To subscribe**, fill in the subscription form — you will be picked up automatically at the next run:
 
-> **[→ Fill the ScoutBot Subscription Form](https://docs.google.com/spreadsheets/d/1dFcnVvQjWkuYhN1rplICTY0j88KgvGqQ3FzYId2ru4s/edit?gid=1666713039#gid=1666713039)**
+> **[→ Fill the ScoutBot Subscription Form](https://docs.google.com/forms/d/e/1FAIpQLSdCxs6tRDwFw1W9L-U1BgWU1MnogT0eHTEZ1-kWSvmzotRGiw/viewform?usp=header)**
 
 No app, no login, no fee. One form fill and you are on the list.
 
