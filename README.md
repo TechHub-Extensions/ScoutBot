@@ -41,9 +41,9 @@ Bank Transfer via GTBank
 | | |
 |---|---|
 | Account Name | ScoutBot Initiative |
-| Bank | Guaranty Trust Bank (GTBank) |
-| Account Number | *(contact us to confirm)* |
-| Sort Code | *(contact us to confirm)* |
+| Bank | Access Bank|
+| Account Number | 1867155335 |
+
 
 </td>
 <td width="50%" valign="top">
