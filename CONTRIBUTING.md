@@ -56,8 +56,6 @@ Before starting significant work, **please email the team first**. This avoids d
 **Core team emails (copy them in for bigger changes):**
 - kamsirichard1960@gmail.com
 - tegazion7@gmail.com
-- successolamide46@gmail.com
-- ayanfeoluwaalalade2000@gmail.com
 
 ---
 
