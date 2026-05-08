@@ -10,7 +10,7 @@ ScoutBot emails a curated digest of the latest opportunities at **7:00 AM and 7:
 
 **To subscribe**, fill in the subscription form — you will be picked up automatically at the next run:
 
-> **[→ Fill the ScoutBot Subscription Form](https://docs.google.com/spreadsheets/d/1dFcnVvQjWkuYhN1rplICTY0j88KgvGqQ3FzYId2ru4s/edit)**
+> **[→ Fill the ScoutBot Subscription Form](https://docs.google.com/spreadsheets/d/1dFcnVvQjWkuYhN1rplICTY0j88KgvGqQ3FzYId2ru4s/edit?gid=1666713039#gid=1666713039)**
 
 No app, no login, no fee. One form fill and you are on the list.
 
@@ -307,10 +307,13 @@ ScoutBot reads **two live sources** before every email run:
 
 New sign-ups require zero code changes and zero redeployment. Fill the form → get the next digest.
 
-**[→ Subscribe Form](https://docs.google.com/spreadsheets/d/1dFcnVvQjWkuYhN1rplICTY0j88KgvGqQ3FzYId2ru4s/edit)**
+**Subscription Form:**
+👉 [Fill the ScoutBot Subscription Form](https://docs.google.com/spreadsheets/d/1dFcnVvQjWkuYhN1rplICTY0j88KgvGqQ3FzYId2ru4s/edit?gid=1666713039#gid=1666713039)
 
----
+**Form Responses Spreadsheet** (what the bot reads automatically):
+👉 [https://docs.google.com/spreadsheets/d/1dFcnVvQjWkuYhN1rplICTY0j88KgvGqQ3FzYId2ru4s/edit?gid=1666713039#gid=1666713039](https://docs.google.com/spreadsheets/d/1dFcnVvQjWkuYhN1rplICTY0j88KgvGqQ3FzYId2ru4s/edit?gid=1666713039#gid=1666713039)
 
+This spreadsheet is read fresh before every send — so anyone who submits between now and 7 AM (or 7 PM) Lagos will receive that day's digest.
 ## Privacy
 
 Each subscriber receives a **personally addressed email** — their address appears in the `To:` field and **no one else's**. There is no BCC list and no group header. Subscribers cannot see each other, and the send does not appear as a mass email in the sender's account.
