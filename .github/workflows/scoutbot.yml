@@ -19,8 +19,8 @@ on:
 jobs:
   run-scoutbot:
     runs-on: ubuntu-latest
-    # Long timeout: scrape ~10 min + 4 batches × 6-min pauses = ~30+ min total
-    timeout-minutes: 60
+    # Timeout: scrape ~10 min + 15 batches (425 subscribers ÷ 30) × 6-min pauses ≈ 100+ min
+    timeout-minutes: 120
 
     steps:
       - name: Check out code
@@ -45,6 +45,7 @@ jobs:
           SENDER_EMAIL=${{ secrets.SENDER_EMAIL }}
           GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
           SPREADSHEET_ID=${{ secrets.SPREADSHEET_ID }}
+          FORM_SHEET_ID=1dFcnVvQjWkuYhN1rplICTY0j88KgvGqQ3FzYId2ru4s
           GOOGLE_SERVICE_ACCOUNT_JSON=service_account.json
           RECIPIENT_EMAILS=${{ secrets.RECIPIENT_EMAILS }}
           EOF
