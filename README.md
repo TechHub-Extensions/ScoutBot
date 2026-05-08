@@ -30,8 +30,8 @@ All project communication goes through email. These are the primary contacts:
 |------|-------|------|
 | Kamsi Richard Ivanna | kamsirichard1960@gmail.com | Founder & Project Lead |
 | Tega | tegazion7@gmail.com | Core Team |
-| Success | successolamide46@gmail.com | Core Team |
-| Ayanfe | ayanfeoluwaalalade2000@gmail.com | Core Team |
+| Ibukun Ojo | adeojoibukun28@gmail.com | Core Team |
+| David Macaulay |  macaulaydavid999@gmail.com | Core Team |
 
 To reach the team, email **kamsirichard1960@gmail.com** with subject `[ScoutBot] Your Topic Here`.
 
