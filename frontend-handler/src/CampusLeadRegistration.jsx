@@ -17,7 +17,8 @@ function SuccessAnimation({ groupName, inviteLink }) {
       <div className="success-text">
         <h2 className="success-title">ScoutBot Joined! 🎉</h2>
         <p className="success-subtitle">
-          We successfully connected to <strong>{groupName || "your group"}</strong>.
+          We successfully connected <strong>{groupName || "your group"}</strong> to the ScoutBot network.
+          Fresh opportunities will drop straight into your WhatsApp.
         </p>
         
         {/* CRITICAL ADMIN INSTRUCTION BLOCK */}
