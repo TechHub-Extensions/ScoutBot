@@ -57,6 +57,7 @@ This is a **bot, not a web app**. That is intentional. No dashboard, no login pa
 |------|-------|------|
 | **Kamsi Richard Ivanna** | kamsirichard1960@gmail.com | Founder & Project Lead |
 | Tega | tegazion7@gmail.com | Core Team |
+| olamide | successolamide@gmail.com | Whatsapp Intiative - Core Team |
 | Ibukun Ojo | adeojoibukun28@gmail.com | Core Team |
 | David Macaulay | macaulaydavid999@gmail.com | Core Team |
 
