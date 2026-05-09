@@ -24,3 +24,28 @@ scoutbot.log
 # OS
 .DS_Store
 Thumbs.db
+
+#Olamide -- touchd this file to add more ignores as needed.
+
+# Node modules
+node_modules/
+*/node_modules/
+
+# Environment Variables (Keep your secrets safe!)
+.env
+.env.local
+.env.*
+
+# WhatsApp Web JS Session Data (CRITICAL)
+.wwebjs_auth/
+.wwebjs_cache/
+distribution-bridge/.wwebjs_auth/
+
+# SQLite Databases (Optional, but good if you don't want to commit the live DB)
+*.db
+*.sqlite
+*.sqlite3
+
+# OS generated files
+.DS_Store
+Thumbs.db
