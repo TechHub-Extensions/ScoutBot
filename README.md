@@ -316,3 +316,11 @@ Want to support the project financially? See the [Fundraising & Support Brief](h
 ## License
 
 MIT License — free to use, modify, and distribute with attribution.
+
+---
+
+## ⚠️ Disclaimer
+
+ScoutBot was vibecoded — built fast, iterated in public, and is genuinely prone to scraping errors, missed deadlines, and the occasional chaos. We do our best to keep it accurate, but always verify opportunities directly at the source before applying.
+
+**Better at coding? Hop on the bot and prove it →** [github.com/TechHub-Extensions/ScoutBot](https://github.com/TechHub-Extensions/ScoutBot)
