@@ -21,6 +21,7 @@ DEFAULT_REQUEST_HEADERS = {
 ITEM_PIPELINES = {
     "scoutbot.pipelines.DedupePipeline": 100,
     "scoutbot.pipelines.SheetsPipeline": 200,
+    "scoutbot.pipelines.WhatsAppInterceptorPipeline": 300, # <-- ScoutBot Bridge Added Here
 }
 
 AUTOTHROTTLE_ENABLED = True

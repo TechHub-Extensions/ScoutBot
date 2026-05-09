@@ -2,10 +2,12 @@
 Scrapy pipelines:
   1. DedupePipeline  — drops duplicates (same link seen in this run)
   2. SheetsPipeline  — writes new items to Google Sheets, skips already-present links
+  3. WhatsAppInterceptorPipeline — silently queues items for the ScoutBot distribution bridge
 """
 
 import os
 import logging
+import sqlite3  # <-- Added for the WhatsApp bridge
 from dotenv import load_dotenv
 from scrapy.exceptions import DropItem
 
@@ -133,3 +135,59 @@ class SheetsPipeline:
             logger.info(f"SheetsPipeline: {len(self.new_rows)} new rows added to Google Sheets.")
         except Exception as exc:
             logger.error(f"SheetsPipeline: Write error — {exc}")
+
+
+# ==============================================================================
+# 🚀 SCOUTBOT DISTRIBUTION BRIDGE - WHATSAPP INTERCEPTOR
+# ==============================================================================
+class WhatsAppInterceptorPipeline:
+    """
+    Intercepts Scrapy items AFTER they pass Dedupe, and routes a copy 
+    to the local SQLite queue for the WhatsApp broadcast daemon.
+    """
+    def __init__(self):
+        self.conn = None
+        self.cursor = None
+
+    def open_spider(self, spider):
+        # Creates the DB file in the root of the Scrapy project
+        self.conn = sqlite3.connect('whatsapp_queue.db')
+        self.cursor = self.conn.cursor()
+        
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS pending_broadcasts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT,
+                link TEXT,
+                deadline TEXT,
+                status TEXT DEFAULT 'unsent'
+            )
+        ''')
+        self.conn.commit()
+        logger.info("📡 WhatsApp Interceptor Pipeline connected to local queue.")
+
+    def close_spider(self, spider):
+        if self.conn:
+            self.conn.close()
+
+    def process_item(self, item, spider):
+        # We only want to queue items that actually have links and aren't closed
+        link = (item.get("application_link") or "").strip()
+        status = (item.get("status") or "Open").strip()
+
+        if link and status == "Open":
+            try:
+                self.cursor.execute('''
+                    INSERT INTO pending_broadcasts (title, link, deadline)
+                    VALUES (?, ?, ?)
+                ''', (
+                    item.get("title", "New Opportunity"), 
+                    link, 
+                    item.get("deadline", "Check link")
+                ))
+                self.conn.commit()
+            except Exception as e:
+                logger.error(f"⚠️ Failed to queue item for WhatsApp: {e}")
+                
+        # Always return the item so the spider continues normally
+        return item

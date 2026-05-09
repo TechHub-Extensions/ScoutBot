@@ -48,9 +48,10 @@ def fire_test_broadcast():
             print(f"❌ Error reaching API for {name}: {e}")
 
         # The Golden Anti-Ban Rule: Random Delay between 3 and 8 seconds
-        delay = random.uniform(3.0, 8.0)
+        delay = random.uniform(15, 30)
         print(f"⏳ Sleeping for {delay:.2f}s to mimic human behavior...\n")
         time.sleep(delay)
+        # Wait between 15 and 30 seconds before sending the next opportunity to avoid triggering WhatsApp's anti-spam filters. This mimics the natural delay of a human sharing opportunities and reduces the risk of bans.
 
     print("🎉 All test broadcasts completed successfully!")
 
