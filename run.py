@@ -77,9 +77,14 @@ def run_schedule():
     import schedule
     import time
 
-    logger.info("run.py: Scheduler started. Will run at 07:00 and 19:00 daily (local time).")
-    schedule.every().day.at("07:00").do(full_pipeline)
-    schedule.every().day.at("19:00").do(full_pipeline)
+    # Always schedule in UTC so the bot fires at 07:00 and 19:00 WAT
+    # regardless of the server's local timezone.
+    # WAT (West Africa Time) = UTC+1, so:
+    #   07:00 WAT = 06:00 UTC
+    #   19:00 WAT = 18:00 UTC
+    logger.info("run.py: Scheduler started. Will run at 06:00 UTC (07:00 WAT) and 18:00 UTC (19:00 WAT) daily.")
+    schedule.every().day.at("06:00").do(full_pipeline)   # 07:00 Nigeria time
+    schedule.every().day.at("18:00").do(full_pipeline)   # 19:00 Nigeria time
 
     # Run immediately on startup so first results appear right away
     full_pipeline()
