@@ -232,12 +232,20 @@ def build_html(opps):
     <a href="{FUNDRAISING_DOC}" style="color:#1a5276;">Support ScoutBot financially &rarr;</a>
   </div>
 
-  <div style="padding:12px 24px;font-size:11px;color:#aaa;border:1px solid #ddd;border-top:none;border-radius:0 0 8px 8px;">
+  <div style="padding:12px 24px;font-size:11px;color:#aaa;border:1px solid #ddd;border-top:none;">
     ScoutBot &mdash; Open Source &nbsp;|&nbsp;
     <a href="{GITHUB_URL}" style="color:#aaa;">GitHub</a>
     &nbsp;|&nbsp;
     <a href="{SHEET_URL}" style="color:#aaa;">Full Opportunity Sheet</a>
     &nbsp;&mdash;&nbsp; You receive this because you subscribed to ScoutBot alerts.
+  </div>
+
+  <div style="padding:10px 24px;font-size:11px;color:#bbb;border:1px solid #ddd;border-top:none;border-radius:0 0 8px 8px;background:#fafafa;">
+    ⚠️ <em>ScoutBot was vibecoded &mdash; built fast, iterated in public, and prone to the occasional error.
+    Always verify opportunities directly at the source before applying.</em>
+    &nbsp;&mdash;&nbsp;
+    <strong>Better at coding? Hop on the bot and prove it &rarr;</strong>
+    <a href="{GITHUB_URL}" style="color:#aaa;">github.com/TechHub-Extensions/ScoutBot</a>
   </div>
 
 </body>
