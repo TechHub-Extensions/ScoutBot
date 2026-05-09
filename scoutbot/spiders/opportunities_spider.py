@@ -7,13 +7,15 @@ Scrapes international and Nigeria-specific opportunity sites for:
   - Startup funding — Grants, VC, Accelerators, Incubators, Pitch
     Competitions — for tech and general startups, national + international.
   - Opportunities in Asia specifically open to Africans / Nigerians.
+  - Reddit subreddits via the public JSON API (no auth required).
 
 Date filtering: any opportunity whose extracted deadline is in the past
 is silently dropped at parse time so stale entries never reach the sheet.
 """
 
+import json
 import re
-from datetime import date
+from datetime import date, datetime, timezone
 from urllib.parse import urlparse
 
 import scrapy
@@ -196,9 +198,36 @@ def org_from_url(url):
         return ""
 
 
+# Reddit posts must contain at least one of these keywords to be kept.
+REDDIT_OPPORTUNITY_KEYWORDS = [
+    "scholarship", "fellowship", "internship", "grant", "funded", "fully funded",
+    "apply", "application", "deadline", "stipend", "bootcamp", "accelerator",
+    "incubator", "competition", "award", "opportunity", "programme", "program",
+    "open to", "eligible", "phd", "masters", "msc", "mba", "undergraduate",
+    "research", "exchange", "bursary", "training",
+]
+
+# Reddit subreddits to crawl — new posts, 100 per request
+REDDIT_SUBREDDITS = [
+    "scholarships",        # r/scholarships — largest scholarship listing community
+    "Internships",         # r/Internships — global internship postings
+    "gradadmissions",      # r/gradadmissions — grad school + funding opportunities
+    "opportunities",       # r/opportunities — general open opportunities
+    "studyabroad",         # r/studyabroad — study abroad programs
+    "Africa",              # r/Africa — continent-wide, filter for opportunities
+    "Nigeria",             # r/Nigeria — Nigeria-specific, filter for opportunities
+    "phd",                 # r/phd — PhD funding announcements
+    "slatestarcodex",      # sometimes posts research fellowships
+]
+
+# Maximum age of a Reddit post to consider (in days)
+REDDIT_MAX_AGE_DAYS = 60
+
+
 class OpportunitiesSpider(scrapy.Spider):
     name = "opportunities"
 
+    # HTML listing sites — handled by parse() → parse_opportunity()
     start_urls = [
         # ============================================================
         # SCHOLARSHIPS / FELLOWSHIPS / INTERNSHIPS — for students
@@ -270,6 +299,114 @@ class OpportunitiesSpider(scrapy.Spider):
     ]
 
     MAX_PAGES = 3
+
+    def start_requests(self):
+        """Yield requests for HTML sites (→ parse) and Reddit JSON feeds (→ parse_reddit)."""
+        # 1. Standard HTML opportunity sites
+        for url in self.start_urls:
+            yield scrapy.Request(url, callback=self.parse)
+
+        # 2. Reddit subreddits via public Atom RSS feed (no auth needed; JSON API blocks cloud IPs)
+        for sub in REDDIT_SUBREDDITS:
+            url = f"https://www.reddit.com/r/{sub}/new/.rss?limit=25"
+            yield scrapy.Request(
+                url,
+                callback=self.parse_reddit_rss,
+                headers={
+                    "Accept": "application/rss+xml, application/xml, text/xml",
+                    "User-Agent": "python:scoutbot.opportunities-aggregator:v1.0 (by /u/scoutbot_ng)",
+                },
+                meta={"subreddit": sub},
+            )
+
+    def parse_reddit_rss(self, response):
+        """
+        Parse Reddit's public Atom RSS feed for a subreddit.
+        Reddit serves Atom XML at /r/{sub}/new/.rss — no OAuth needed.
+        Yields OpportunityItems for posts that look like real listings.
+        """
+        import xml.etree.ElementTree as ET
+
+        sub = response.meta.get("subreddit", "reddit")
+        try:
+            root = ET.fromstring(response.text)
+        except Exception as exc:
+            self.logger.warning(f"Reddit r/{sub}: RSS parse failed — {exc}")
+            return
+
+        # Atom namespace
+        ns = {"atom": "http://www.w3.org/2005/Atom"}
+        entries = root.findall("atom:entry", ns)
+        now_ts = datetime.now(tz=timezone.utc).timestamp()
+        cutoff_ts = now_ts - (REDDIT_MAX_AGE_DAYS * 86400)
+        kept = 0
+
+        for entry in entries:
+            title_el = entry.find("atom:title", ns)
+            title = (title_el.text or "").strip() if title_el is not None else ""
+            if not title:
+                continue
+
+            # Skip posts with past years in title
+            year_match = PAST_YEAR_RE.search(title)
+            if year_match and int(year_match.group(1)) < date.today().year:
+                continue
+
+            # Post URL (href on the <link> element)
+            link_el = entry.find("atom:link", ns)
+            post_url = link_el.get("href", "") if link_el is not None else ""
+
+            # Updated timestamp — used to filter old posts
+            updated_el = entry.find("atom:updated", ns)
+            if updated_el is not None and updated_el.text:
+                try:
+                    updated_dt = datetime.fromisoformat(
+                        updated_el.text.replace("Z", "+00:00")
+                    )
+                    if updated_dt.timestamp() < cutoff_ts:
+                        continue
+                except Exception:
+                    pass
+
+            # Post body lives in <content> as HTML — strip tags for text
+            content_el = entry.find("atom:content", ns)
+            raw_html = (content_el.text or "") if content_el is not None else ""
+            # Strip HTML tags
+            body = re.sub(r"<[^>]+>", " ", raw_html)
+            body = re.sub(r"\s+", " ", body).strip()
+            if body in ("[removed]", "[deleted]"):
+                body = ""
+
+            combined = (title + " " + body).lower()
+
+            # Only keep posts that look like actual opportunity listings
+            if not any(kw in combined for kw in REDDIT_OPPORTUNITY_KEYWORDS):
+                continue
+
+            deadline_str = extract_deadline(title + " " + body)
+            if is_expired(deadline_str, title):
+                continue
+
+            apply_link = post_url or f"https://www.reddit.com/r/{sub}/"
+            industry = infer_industry(combined)
+
+            item = OpportunityItem()
+            item["title"]            = title
+            item["industry"]         = industry
+            item["category"]         = infer_category(apply_link, combined)
+            item["range"]            = infer_range(combined)
+            item["education_level"]  = infer_edu(combined, industry)
+            item["organization"]     = f"Reddit r/{sub}"
+            item["summary"]          = body[:400].strip() or title
+            item["application_link"] = apply_link
+            item["opening_date"]     = ""
+            item["deadline"]         = deadline_str
+            item["status"]           = "Open"
+
+            kept += 1
+            yield item
+
+        self.logger.info(f"Reddit r/{sub}: {kept} posts kept from {len(entries)} RSS entries.")
 
     def parse(self, response):
         """Parse a listing/search page and yield requests to individual opportunity pages."""
