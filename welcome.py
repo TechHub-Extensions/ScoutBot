@@ -117,6 +117,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     To unsubscribe, email
     <a href="mailto:kamsirichard1960@gmail.com">kamsirichard1960@gmail.com</a>.
   </div>
+  <div style="background:#f7f7f7;text-align:center;padding:12px 36px;font-size:11px;color:#bbb;border-top:1px solid #e8e8e8;">
+    &#9888;&#65039; <em>ScoutBot was vibecoded &mdash; built fast, iterated in public, and prone to the occasional error.
+    Always verify opportunities at the source before applying.</em><br>
+    <strong style="color:#aaa;">Better at coding? Hop on the bot and prove it &rarr;</strong>
+    <a href="https://github.com/TechHub-Extensions/ScoutBot" style="color:#aaa;">
+      github.com/TechHub-Extensions/ScoutBot
+    </a>
+  </div>
 </div>
 </body>
 </html>"""
