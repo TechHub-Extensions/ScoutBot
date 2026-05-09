@@ -25,54 +25,13 @@ ScoutBot is open source and free for every user. We are Nigerian students buildi
 **Our goal:** reach **4,000 Nigerian students** in the next 6 months.
 To get there we need **₦2,000,000 (~$1,500 USD)** for Twitter/X advertising.
 
-We welcome two kinds of support — pick what works for you:
-
----
-
-### Option A — Contribute Directly
-
-<table>
-<tr>
-<td width="50%" valign="top">
-
-**🇳🇬 NAIRA (NGN)**<br>
-Bank Transfer via GTBank
-
-| | |
-|---|---|
-| Account Name | ScoutBot Initiative |
-| Bank | Access Bank|
-| Account Number | 1867155335 |
-
-
-</td>
-<td width="50%" valign="top">
-
-**🌍 INTERNATIONAL (USD / GBP / EUR)**<br>
-PayPal or Wise
-
-| | |
-|---|---|
-| PayPal | STILL ON THIS |
-| Wise | STILL ON THIS |
-
-</td>
-</tr>
-</table>
-
-> **⚠️ Please reach out before sending funds** — email **kamsirichard1960@gmail.com** with subject `ScoutBot Financial Support` and we will confirm all account details directly.
-
----
-
-### Option B — Read the Full Fundraising Brief
-
-See our goals, the full breakdown of costs, and what sponsors receive in return:
+For all financial information — goals, cost breakdown, how to contribute, and account details — see the fundraising brief:
 
 📄 **[ScoutBot — Fundraising & Support Brief (Google Doc)](https://docs.google.com/document/d/1SqxaAg4tvuWp3LgGzqSSSw4_bxBWHmgmrQ9IyyKHtE8/edit)**
 
 ---
 
-### Option C — Contribute Code / Non-Financially
+### Contribute Code / Non-Financially
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide.
 
@@ -350,7 +309,7 @@ ScoutBot/
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide.
 
-Want to support the project financially? See the [Fundraising & Support Brief](https://docs.google.com/document/d/1SqxaAg4tvuWp3LgGzqSSSw4_bxBWHmgmrQ9IyyKHtE8/edit) or [contribute directly](#option-a--contribute-directly) above.
+Want to support the project financially? See the [Fundraising & Support Brief](https://docs.google.com/document/d/1SqxaAg4tvuWp3LgGzqSSSw4_bxBWHmgmrQ9IyyKHtE8/edit) for goals, costs, and account details.
 
 ---
 
