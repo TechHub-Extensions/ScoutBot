@@ -11,16 +11,17 @@ RANDOMIZE_DOWNLOAD_DELAY = True
 DEFAULT_REQUEST_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en",
+    # Reddit requires a descriptive User-Agent or it returns 429/403.
+    # Format: <platform>:<app ID>:<version> (by /u/<dev>)
     "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
+        "python:scoutbot.opportunities-aggregator:v1.0 (by /u/scoutbot_ng)"
     ),
 }
 
 ITEM_PIPELINES = {
     "scoutbot.pipelines.DedupePipeline": 100,
     "scoutbot.pipelines.SheetsPipeline": 200,
+    "scoutbot.pipelines.WhatsAppInterceptorPipeline": 300, # <-- ScoutBot Bridge Added Here
 }
 
 AUTOTHROTTLE_ENABLED = True
