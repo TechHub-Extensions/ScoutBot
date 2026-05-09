@@ -139,13 +139,12 @@ app.post("/register", async (req, res) => {
     .prepare("SELECT * FROM campus_groups WHERE invite_link = ?")
     .get(invite_link);
 
-  if (existing && existing.group_jid) {
-    return res.json({
-      success: true,
-      message: "Group already registered.",
-      group_jid: existing.group_jid,
-      group_name: existing.group_name,
-      already_existed: true,
+  // UPDATED: Duplicate Check Logic
+  if (existing) {
+    console.warn(`⚠️ Duplicate registration attempt for link tied to: ${existing.campus_name}`);
+    return res.status(409).json({
+      duplicate: true,
+      existing_campus: existing.campus_name // Send back the original name tied to this link
     });
   }
 

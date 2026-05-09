@@ -17,17 +17,13 @@ function SuccessAnimation({ groupName, inviteLink }) {
       <div className="success-text">
         <h2 className="success-title">ScoutBot Joined! 🎉</h2>
         <p className="success-subtitle">
-          We successfully connected <strong>{groupName || "your group"}</strong> to the ScoutBot network.
-          Fresh opportunities will drop straight into your WhatsApp.
+          Congratulations! We successfully added <strong>{groupName || "your group"}</strong> to the ScoutBot network.
         </p>
         
-        {/* CRITICAL ADMIN INSTRUCTION BLOCK */}
-        <div className="admin-warning" style={{ backgroundColor: '#FFF4E5', padding: '16px', borderRadius: '8px', marginTop: '16px', borderLeft: '4px solid #FF9800', textAlign: 'left' }}>
-          <h4 style={{ margin: '0 0 8px 0', color: '#B76E00', fontSize: '15px' }}>⚠️ CRITICAL LAST STEP</h4>
-          <p style={{ margin: '0', fontSize: '14px', color: '#5C3D00', lineHeight: '1.5' }}>
-            If your group is set to <strong>"Only Admins Can Send Messages"</strong>, you MUST open WhatsApp right now and make the ScoutBot number <strong>(+234 816 449 9922)</strong> an Admin. Otherwise, it cannot deliver opportunities.
-          </p>
-        </div>
+        {/* Minimalist Admin Instruction */}
+        <p style={{ margin: '16px 0 0 0', fontSize: '13px', color: '#666', fontWeight: '500' }}>
+          NOTE: Make ScoutBot an Admin (+234 816 449 9922).
+        </p>
       </div>
 
       <a
@@ -130,7 +126,12 @@ export default function CampusLeadRegistration() {
       });
       const data = await res.json();
 
-      if (data.success || data.pending) {
+      // 🚨 NEW: Explicitly handle duplicate registrations
+      if (data.duplicate) {
+        setError(
+          `This invite link is already registered to "${data.existing_campus}". Please provide a unique WhatsApp group link for ${campusName.trim()}.`
+        );
+      } else if (data.success || data.pending) {
         setSuccess({
           groupName: data.group_name || campusName,
           inviteLink: inviteLink.trim(),
@@ -157,6 +158,10 @@ export default function CampusLeadRegistration() {
               ⏳ Your group will be joined once the ScoutBot session is live.
             </p>
           )}
+          
+          {/* Footer injected into Success View */}
+          <Footer />
+          
         </div>
       </div>
     );
@@ -224,10 +229,11 @@ export default function CampusLeadRegistration() {
             )}
           </div>
 
+          {/* 🚨 UPDATED: Slightly tweaked error flexbox so long text wraps beautifully */}
           {error && (
-            <div className="alert">
-              <span className="alert-icon">⚠</span>
-              {error}
+            <div className="alert" style={{ display: 'flex', alignItems: 'flex-start', textAlign: 'left', lineHeight: '1.4' }}>
+              <span className="alert-icon" style={{ marginTop: '2px' }}>⚠</span>
+              <span>{error}</span>
             </div>
           )}
 
@@ -246,10 +252,9 @@ export default function CampusLeadRegistration() {
           </button>
         </form>
 
-        <p className="footer-note">
-          By registering, your group will receive curated opportunities via ScoutBot.
-          No spam. Unsubscribe anytime.
-        </p>
+        {/* Footer injected into Main View */}
+        <Footer />
+
       </div>
     </div>
   );
@@ -273,6 +278,40 @@ function Header() {
         Connect your WhatsApp group to receive curated opportunities — internships,
         scholarships, and fellowships — automatically.
       </p>
+    </div>
+  );
+}
+
+// ── Standalone Footer Component ───────────────────────────────────────────────
+function Footer() {
+  return (
+    <div className="footer-note" style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      gap: '6px', 
+      alignItems: 'center', 
+      marginTop: '24px',
+      paddingBottom: '8px',
+      color: '#6B7280' 
+    }}>
+      <p style={{ margin: 0, fontSize: '13px', textAlign: 'center', lineHeight: '1.4' }}>
+        By registering, your group will receive curated opportunities via ScoutBot. No spam. Unsubscribe anytime.
+      </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '500', opacity: 0.9, letterSpacing: '0.3px', marginTop: '4px', color: '#374151' }}>
+        <span>© {new Date().getFullYear()} Olamide Fasogbon</span>
+        <a 
+          href="https://www.linkedin.com/in/olamidefasogbon" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          style={{ display: 'flex', alignItems: 'center', color: '#0066F5', transition: 'opacity 0.2s' }}
+          onMouseEnter={(e) => e.currentTarget.style.opacity = 0.7}
+          onMouseLeave={(e) => e.currentTarget.style.opacity = 1}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+          </svg>
+        </a>
+      </div>
     </div>
   );
 }
