@@ -284,20 +284,62 @@ function Header() {
 
 // ── Standalone Footer Component ───────────────────────────────────────────────
 function Footer() {
+  const [communityCount, setCommunityCount] = useState(null);
+
+  useEffect(() => {
+    // Fetch live metrics directly from the backend
+    fetch(`${BACKEND_URL}/groups/count`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && typeof data.count === 'number') {
+          setCommunityCount(data.count);
+        }
+      })
+      .catch(() => console.error("Metrics silently failed to load"));
+  }, []);
+
   return (
     <div className="footer-note" style={{ 
       display: 'flex', 
       flexDirection: 'column', 
-      gap: '6px', 
+      gap: '8px', 
       alignItems: 'center', 
-      marginTop: '24px',
+      marginTop: '28px',
       paddingBottom: '8px',
       color: '#6B7280' 
     }}>
+      
+      {/* 🟢 Live Metrics Badge */}
+      {communityCount !== null && communityCount > 0 && (
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '8px', 
+          backgroundColor: '#F3F4F6', 
+          padding: '6px 14px', 
+          borderRadius: '20px', 
+          marginBottom: '4px',
+          border: '1px solid #E5E7EB'
+        }}>
+          <span style={{ 
+            display: 'inline-block', 
+            width: '8px', 
+            height: '8px', 
+            backgroundColor: '#10B981', 
+            borderRadius: '50%', 
+            boxShadow: '0 0 6px rgba(16, 185, 129, 0.6)' 
+          }}></span>
+          <span style={{ fontSize: '13px', fontWeight: '600', color: '#374151', letterSpacing: '0.2px' }}>
+            Powering {communityCount} active {communityCount === 1 ? 'community' : 'communities'}
+          </span>
+        </div>
+      )}
+
       <p style={{ margin: 0, fontSize: '13px', textAlign: 'center', lineHeight: '1.4' }}>
-        By registering, your group will receive curated opportunities via ScoutBot. No spam. Unsubscribe anytime.
+        By registering, your group will receive automated broadcasts. No spam. Unsubscribe anytime.
       </p>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '500', opacity: 0.9, letterSpacing: '0.3px', marginTop: '4px', color: '#374151' }}>
+      
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '500', opacity: 0.9, letterSpacing: '0.3px', marginTop: '2px', color: '#374151' }}>
         <span>© {new Date().getFullYear()} Olamide Fasogbon</span>
         <a 
           href="https://www.linkedin.com/in/olamidefasogbon" 
