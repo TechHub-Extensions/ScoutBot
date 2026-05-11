@@ -49,3 +49,5 @@ distribution-bridge/.wwebjs_auth/
 # OS generated files
 .DS_Store
 Thumbs.db
+*.db-shm
+*.db-wal
