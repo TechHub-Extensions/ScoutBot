@@ -20,6 +20,9 @@ app.use(express.json());
 const DB_PATH = path.join(__dirname, "scoutbot.db");
 const db = new Database(DB_PATH);
 
+// 🚨 CRITICAL FIX: Enable Write-Ahead Logging to prevent SQLITE_BUSY lock crashes
+db.pragma('journal_mode = WAL');
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS campus_groups (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,6 +115,7 @@ function extractInviteCode(link) {
 
 // ── Routes ───────────────────────────────────────────────────────────────────
 
+
 // GET /status — session health check + QR if needed
 app.get("/status", (req, res) => {
   res.json({
@@ -119,6 +123,17 @@ app.get("/status", (req, res) => {
     qr: qrCodeData,
     error: initializationError,
   });
+});
+
+// GET /groups/count — Lightweight endpoint for frontend metrics
+app.get("/groups/count", (req, res) => {
+  try {
+    const result = db.prepare("SELECT COUNT(*) as total FROM campus_groups WHERE is_active = 1").get();
+    res.json({ count: result.total });
+  } catch (err) {
+    console.error("Metrics error:", err);
+    res.status(500).json({ count: 0 });
+  }
 });
 
 // POST /register — accept campus + invite link, join group, save JID
