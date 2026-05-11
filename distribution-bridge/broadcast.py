@@ -260,10 +260,13 @@ def fetch_registered_groups() -> list[dict]:
     except Exception as e:
         log.warning(f"Could not reach Session Manager API ({e}). Trying direct DB read...")
 
-    # Fallback: check multiple possible DB locations
+
+    # Fallback: read the SQLite file directly
     db_path = Path(__file__).parent / "scoutbot.db"
+
     if not db_path.exists():
-         db_path = Path(__file__).parent.parent / "scoutbot.db"
+        # Check one level up just in case
+        db_path = Path(__file__).parent.parent / "scoutbot.db"     
 
     if not db_path.exists():
         log.error(f"Database not found. Cannot broadcast.")
