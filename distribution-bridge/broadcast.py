@@ -1,21 +1,9 @@
 """
 broadcast.py — ScoutBot Distribution Broadcast Engine
 ======================================================
-Post-processing step that reads new opportunities (from Google Sheets or a
-local JSON export produced by ScoutBot's pipeline) and fans them out to every
-registered WhatsApp campus group via the Session Manager API.
-
-Usage
------
-    # After a ScoutBot run (or on a schedule):
-    python broadcast.py --source sheets          # pull from Google Sheets
-    python broadcast.py --source json --file opportunities.json
-    python broadcast.py --source sheets --limit 5  # only broadcast latest 5
-
-Environment variables (or .env file):
-    SESSION_API_URL        http://localhost:3001  (the Node.js backend)
-    SPREADSHEET_ID         Google Sheets ID (same as ScoutBot's .env)
-    GOOGLE_SERVICE_ACCOUNT_JSON  path to service_account.json
+Post-processing step that reads new opportunities (from a local JSON export 
+produced by ScoutBot's pipeline) and fans them out to every registered 
+WhatsApp campus group via the Session Manager API.
 """
 
 import os
@@ -130,7 +118,6 @@ def assess_urgency(item: dict) -> str:
     if not deadline_str:
         return "medium"
     try:
-        # Try common formats
         for fmt in ("%d %B %Y", "%B %d, %Y", "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"):
             try:
                 deadline = datetime.datetime.strptime(deadline_str.strip(), fmt).date()
@@ -208,9 +195,14 @@ def fetch_from_sheets(limit: int = None) -> list[dict]:
         "https://www.googleapis.com/auth/drive",
     ]
 
+    # FIX: Use absolute path relative to this script, avoid ScoutBot-main reference
     json_path = SERVICE_ACCOUNT_JSON
     if not os.path.isabs(json_path):
-        json_path = os.path.join(Path(__file__).parent.parent, "ScoutBot-main", json_path)
+        json_path = os.path.join(Path(__file__).parent, json_path)
+
+    if not os.path.exists(json_path):
+        log.warning(f"Service account file not found at {json_path}. Skipping Sheets.")
+        return []
 
     creds = Credentials.from_service_account_file(json_path, scopes=scopes)
     client = gspread.authorize(creds)
@@ -224,7 +216,7 @@ def fetch_from_sheets(limit: int = None) -> list[dict]:
     headers = [h.lower().replace(" ", "_") for h in all_values[0]]
     rows = all_values[1:]
     if limit:
-        rows = rows[-limit:]  # take the most recent N rows
+        rows = rows[-limit:]
 
     items = []
     for row in rows:
@@ -236,7 +228,15 @@ def fetch_from_sheets(limit: int = None) -> list[dict]:
 
 
 def fetch_from_json(filepath: str) -> list[dict]:
-    """Load opportunities from a JSON file (e.g. Scrapy FEED output)."""
+    """Load opportunities from a JSON file (intercepted data)."""
+    # FIX: Handle relative paths for Azure environment
+    if not os.path.isabs(filepath):
+        filepath = os.path.join(Path(__file__).parent, filepath)
+
+    if not os.path.exists(filepath):
+        log.error(f"JSON file not found: {filepath}")
+        return []
+
     with open(filepath, "r", encoding="utf-8") as f:
         data = json.load(f)
     if isinstance(data, list):
@@ -249,10 +249,7 @@ def fetch_from_json(filepath: str) -> list[dict]:
 # ── Group Recipients ──────────────────────────────────────────────────────────
 
 def fetch_registered_groups() -> list[dict]:
-    """
-    Fetch active groups from the Session Manager API.
-    Falls back to reading the SQLite database directly if the API is unavailable.
-    """
+    """Fetch active groups from the Session Manager API."""
     try:
         import requests
         resp = requests.get(f"{SESSION_API_URL}/groups/export", timeout=5)
@@ -263,13 +260,13 @@ def fetch_registered_groups() -> list[dict]:
     except Exception as e:
         log.warning(f"Could not reach Session Manager API ({e}). Trying direct DB read...")
 
-    # Fallback: read the SQLite file directly
-    db_path = Path(__file__).parent.parent / "scoutbot-distribution" / "backend" / "scoutbot.db"
+    # Fallback: check multiple possible DB locations
+    db_path = Path(__file__).parent / "scoutbot.db"
     if not db_path.exists():
-        db_path = Path(__file__).parent / "backend" / "scoutbot.db"
+         db_path = Path(__file__).parent.parent / "scoutbot.db"
 
     if not db_path.exists():
-        log.error(f"Database not found at {db_path}. Cannot broadcast.")
+        log.error(f"Database not found. Cannot broadcast.")
         return []
 
     conn = sqlite3.connect(str(db_path))
@@ -287,13 +284,6 @@ def fetch_registered_groups() -> list[dict]:
 # ── WhatsApp Sender ───────────────────────────────────────────────────────────
 
 def send_via_whatsapp_web_js(group_jid: str, message: str) -> bool:
-    """
-    Send a message to a WhatsApp group by hitting the Session Manager's
-    internal send endpoint.
-
-    NOTE: The Node.js backend exposes a /send endpoint (add to server.js
-    if needed for standalone use). This function POSTs to it.
-    """
     try:
         import requests
         resp = requests.post(
@@ -311,10 +301,6 @@ def send_via_whatsapp_web_js(group_jid: str, message: str) -> bool:
 # ── Broadcast Loop ────────────────────────────────────────────────────────────
 
 def broadcast(opportunities: list[dict], groups: list[dict], dry_run: bool = False):
-    """
-    Main broadcast loop.
-    For each opportunity × each group: format → send → sleep.
-    """
     if not opportunities:
         log.warning("No opportunities to broadcast.")
         return
@@ -348,10 +334,6 @@ def broadcast(opportunities: list[dict], groups: list[dict], dry_run: bool = Fal
 
             if dry_run:
                 log.info(f"  [DRY RUN] Would send to {campus} ({jid})")
-                print("\n" + "─" * 60)
-                print(f"TO: {campus}")
-                print(message)
-                print("─" * 60)
                 sent += 1
                 continue
 
@@ -363,21 +345,17 @@ def broadcast(opportunities: list[dict], groups: list[dict], dry_run: bool = Fal
                 log.warning(f"  ❌ Failed for {campus}")
                 failed += 1
 
-            # ── Safety: randomised delay between each send ──────────────
             delay = random.uniform(DELAY_MIN, DELAY_MAX)
-            log.debug(f"  💤 Sleeping {delay:.1f}s...")
             time.sleep(delay)
 
-        # Extra pause between different opportunities
         inter_opp_delay = random.uniform(5, 12)
-        log.debug(f"⏸️  Inter-opportunity pause: {inter_opp_delay:.1f}s")
         if not dry_run:
             time.sleep(inter_opp_delay)
 
     log.info(
         f"\n{'=' * 50}\n"
         f"📊 Broadcast complete.\n"
-        f"   ✅ Sent:   {sent}\n"
+        f"   ✅ Sent:    {sent}\n"
         f"   ❌ Failed: {failed}\n"
         f"{'=' * 50}"
     )
@@ -387,34 +365,36 @@ def broadcast(opportunities: list[dict], groups: list[dict], dry_run: bool = Fal
 
 def main():
     parser = argparse.ArgumentParser(
-        description="ScoutBot Broadcast Engine — fan opportunities out to WhatsApp groups"
+        description="ScoutBot Broadcast Engine"
     )
+    # FIX: Default source to 'json' to bypass Google Sheets lock
     parser.add_argument(
         "--source",
         choices=["sheets", "json"],
-        default="sheets",
-        help="Data source: 'sheets' (Google Sheets) or 'json' (local file)",
+        default="json",
+        help="Data source: 'sheets' or 'json' (default: json)",
     )
+    # FIX: Default to opportunities.json (the intercepted data)
     parser.add_argument(
         "--file",
         default="opportunities.json",
-        help="Path to JSON file (only used when --source=json)",
+        help="Path to JSON file",
     )
     parser.add_argument(
         "--limit",
         type=int,
         default=None,
-        help="Only broadcast the N most recent opportunities",
+        help="Limit opportunities",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Print messages without actually sending them",
+        help="Print without sending",
     )
     parser.add_argument(
         "--preview",
         action="store_true",
-        help="Preview the formatted message for the first opportunity and exit",
+        help="Preview first message and exit",
     )
 
     args = parser.parse_args()
@@ -424,7 +404,7 @@ def main():
         opportunities = fetch_from_sheets(limit=args.limit)
     else:
         opportunities = fetch_from_json(args.file)
-        if args.limit:
+        if args.limit and opportunities:
             opportunities = opportunities[-args.limit:]
 
     if not opportunities:
@@ -435,12 +415,8 @@ def main():
     if args.preview:
         sample = opportunities[0]
         print("\n" + "═" * 60)
-        print("PREVIEW — First opportunity message:")
-        print("═" * 60)
         print(format_message(sample))
         print("═" * 60)
-        print(f"\nClassification: {classify_opportunity(sample)}")
-        print(f"Urgency: {assess_urgency(sample)}")
         sys.exit(0)
 
     # ── Load groups ──────────────────────────────────────────────────────────
