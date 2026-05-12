@@ -20,7 +20,7 @@ def get_unseen_opportunities(group_jid):
     
     try:
         # Connect to the Scrapy interceptor DB
-        conn = sqlite3.connect('whatsapp_queue.db')
+        conn = sqlite3.connect('./distribution-bridge/whatsapp_queue.db')
         
         # 🚨 UPDATED: Attach the Node database to cross-reference what this group has seen
         conn.execute("ATTACH DATABASE 'scoutbot.db' AS scoutdb")
