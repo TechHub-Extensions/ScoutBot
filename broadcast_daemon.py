@@ -3,6 +3,7 @@ import time
 import random
 import logging
 import sqlite3
+import datetime  # Added for time calculation
 
 # --- CONFIGURATION ---
 BACKEND_URL = "http://localhost:3001"
@@ -47,7 +48,6 @@ def get_unseen_opportunities(group_jid):
                 "deadline": row[3]
             })
 
-        # Notice: We removed the UPDATE status = 'sent' here to keep them in the global pool
         conn.close()
 
     except sqlite3.OperationalError as e:
@@ -65,13 +65,12 @@ def start_automation_loop():
     while True:
         logging.info("🔍 Checking for new opportunities...")
         
-        # 🚨 CRITICAL FIX 1: Health-Check Ping (Ghost Disconnect Protection)
         try:
             status_res = requests.get(f"{BACKEND_URL}/status").json()
             if not status_res.get("ready"):
                 logging.warning("CRITICAL: WhatsApp is disconnected. Pausing for 30 mins...")
                 time.sleep(1800)
-                continue # Skip this run to prevent a total crash
+                continue 
         except Exception as e:
             logging.error(f"Node backend offline: {e}. Pausing for 30 mins...")
             time.sleep(1800)
@@ -88,14 +87,10 @@ def start_automation_loop():
         if not groups:
             logging.warning("No active groups found. Sleeping...")
         else:
-            # Matrix rotation: Shuffle groups so the same campus doesn't always get texted first
             random.shuffle(groups)
 
-            # 🚨 CRITICAL FIX 2: The Batch Drip Algorithm (Group-First Loop)
             for group_index, group in enumerate(groups):
                 jid = group['group_jid']
-                
-                # Ask the DB for links strictly for this campus
                 opportunities = get_unseen_opportunities(jid)
                 
                 if not opportunities:
@@ -104,15 +99,24 @@ def start_automation_loop():
                     
                 logging.info(f"Distributing {len(opportunities)} links to {group['group_name']}...")
                 
-                for opp in opportunities:
-                    # 🚨 TRADEMARK FIX: Clean ScoutBot signature
+                # Iterate through the opportunities (Limit 3)
+                for opp_index, opp in enumerate(opportunities):
+                    # Base message
                     msg = (
                         f"✨ *NEW OPPORTUNITY* ✨\n\n"
                         f"📌 *{opp['title']}*\n"
                         f"📅 Deadline: {opp['deadline']}\n\n"
                         f"🔗 Apply Here: {opp['link']}\n\n"
-                        f"🤖_Powered by ScoutBot_"
                     )
+
+                    # 🚨 HCI UX UPDATE: Add "Next Drop" time on the 3rd (last) opportunity
+                    # index 2 is the 3rd item in a 0-indexed list
+                    if opp_index == len(opportunities) - 1:
+                        next_drop_dt = datetime.datetime.now() + datetime.timedelta(seconds=CHECK_INTERVAL)
+                        next_drop_time = next_drop_dt.strftime("%I:%M %p")
+                        msg += f"⏳ *Next opportunity drop time:* {next_drop_time}\n\n"
+
+                    msg += f"🤖_Powered by ScoutBot_"
                     
                     try:
                         res = requests.post(f"{BACKEND_URL}/send", json={
@@ -122,7 +126,6 @@ def start_automation_loop():
                         if res.status_code == 200:
                             logging.info(f"✅ Node backend confirmed send to {group['group_name']}")
                             
-                            # Log the exact ID into scoutbot.db so it's never sent to this group again
                             log_conn = sqlite3.connect('scoutbot.db')
                             log_conn.execute(
                                 "INSERT INTO broadcast_log (group_jid, opportunity_title, status) VALUES (?, ?, ?)",
@@ -135,15 +138,12 @@ def start_automation_loop():
                     except Exception as e:
                         logging.error(f"Failed to connect to Node: {e}")
 
-                    # Anti-Ban Human Mimicry (15 to 30 seconds between individual links)
                     delay = random.uniform(15, 30)
                     logging.info(f"⏳ Sleeping for {int(delay)} seconds to mimic human typing...")
                     time.sleep(delay)
                     
-                # 🚨 CRITICAL FIX 3: The 30-60 Minute Coffee Break
-                # Only take a coffee break if this isn't the final group in the list
                 if group_index < len(groups) - 1:
-                    coffee_break = random.uniform(1800, 3600) # 30 to 60 minutes
+                    coffee_break = random.uniform(1800, 3600) 
                     logging.info(f"☕ Taking a coffee break for {int(coffee_break/60)} minutes before the next campus...")
                     time.sleep(coffee_break)
 

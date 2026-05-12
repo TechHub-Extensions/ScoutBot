@@ -86,6 +86,47 @@ function initWhatsApp() {
     initializationError = null;
   });
 
+  // ── NEW HCI UX: Welcome & Teaser Opportunity ──────────────────────────────
+  waClient.on("group_join", async (notification) => {
+    // Check if the bot itself joined
+    if (notification.recipientIds.includes(waClient.info.wid._serialized)) {
+      const chatId = notification.chatId;
+
+      // 1. Send Welcome Message
+      const welcomeMsg = 
+        "👋 *Hi everyone! I'm ScoutBot* 🤖\n\n" +
+        "I'm here to handle the automation of fresh opportunities—scholarships, tech internships, and career growth links—directly to this group.";
+      
+      await waClient.sendMessage(chatId, welcomeMsg);
+
+      // 2. Calculate Next Official Drop Time (3.5 hours from now)
+      const nextDropDate = new Date();
+      nextDropDate.setMinutes(nextDropDate.getMinutes() + 210); // 3.5 hours = 210 mins
+      const nextDropTime = nextDropDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      // 3. Attach 'whatsapp_queue.db' temporarily to grab a sample
+      try {
+        db.prepare("ATTACH DATABASE 'whatsapp_queue.db' AS queue").run();
+        const sample = db.prepare("SELECT title, link, deadline FROM queue.pending_broadcasts ORDER BY RANDOM() LIMIT 1").get();
+        db.prepare("DETACH DATABASE queue").run();
+
+        if (sample) {
+          const teaserMsg = 
+            "✨ *SAMPLE OPPORTUNITY* ✨\n\n" +
+            `📌 *${sample.title}*\n` +
+            `📅 Deadline: ${sample.deadline}\n\n` +
+            `🔗 Apply: ${sample.link}\n\n` +
+            `🚀 *The real opportunity drops start at ${nextDropTime}.* Stay tuned! \n\n` +
+            "🤖 _Powered by ScoutBot_";
+
+          await waClient.sendMessage(chatId, teaserMsg);
+        }
+      } catch (e) {
+        console.error("Failed to send teaser opportunity:", e.message);
+      }
+    }
+  });
+
   waClient.on("auth_failure", (msg) => {
     console.error("❌ WhatsApp auth failure:", msg);
     initializationError = msg;
