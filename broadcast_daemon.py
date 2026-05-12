@@ -3,12 +3,20 @@ import time
 import random
 import logging
 import sqlite3
-import datetime  # Added for time calculation
+import datetime
+import os
 
 # --- CONFIGURATION ---
 BACKEND_URL = "http://localhost:3001"
 CHECK_INTERVAL = 12600  # 3.5 hours
 # ---------------------
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 🚨 NEW: Tell it to look inside the distribution-bridge folder for the DBs
+BRIDGE_DIR = os.path.join(BASE_DIR, 'distribution-bridge')
+QUEUE_DB = os.path.join(BRIDGE_DIR, 'whatsapp_queue.db')
+SCOUT_DB = os.path.join(BRIDGE_DIR, 'scoutbot.db')
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -20,7 +28,7 @@ def get_unseen_opportunities(group_jid):
     
     try:
         # Connect to the Scrapy interceptor DB
-        conn = sqlite3.connect('./distribution-bridge/whatsapp_queue.db')
+        conn = sqlite3.connect(QUEUE_DB)
         
         # 🚨 UPDATED: Attach the Node database to cross-reference what this group has seen
         conn.execute("ATTACH DATABASE 'scoutbot.db' AS scoutdb")
