@@ -106,7 +106,10 @@ function initWhatsApp() {
 
       // 3. Attach 'whatsapp_queue.db' temporarily to grab a sample
       try {
-        db.prepare("ATTACH DATABASE 'whatsapp_queue.db' AS queue").run();
+        // 🚨 UPDATED: Use path.join to get the exact location
+        const queueDbPath = path.join(__dirname, 'whatsapp_queue.db');
+        
+        db.prepare(`ATTACH DATABASE '${queueDbPath}' AS queue`).run();
         const sample = db.prepare("SELECT title, link, deadline FROM queue.pending_broadcasts ORDER BY RANDOM() LIMIT 1").get();
         db.prepare("DETACH DATABASE queue").run();
 
@@ -121,7 +124,8 @@ function initWhatsApp() {
 
           await waClient.sendMessage(chatId, teaserMsg);
         }
-      } catch (e) {
+      } 
+      catch (e) {
         console.error("Failed to send teaser opportunity:", e.message);
       }
     }
