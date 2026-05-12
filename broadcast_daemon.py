@@ -31,7 +31,7 @@ def get_unseen_opportunities(group_jid):
         conn = sqlite3.connect(QUEUE_DB)
         
         # 🚨 UPDATED: Attach the Node database to cross-reference what this group has seen
-        conn.execute("ATTACH DATABASE 'scoutbot.db' AS scoutdb")
+        conn.execute("ATTACH DATABASE ? AS scoutdb", (SCOUT_DB,))
         cursor = conn.cursor()
 
         # 🚨 UPDATED: Grab 3 unseen, active opportunities
@@ -134,7 +134,7 @@ def start_automation_loop():
                         if res.status_code == 200:
                             logging.info(f"✅ Node backend confirmed send to {group['group_name']}")
                             
-                            log_conn = sqlite3.connect('scoutbot.db')
+                            log_conn = sqlite3.connect(SCOUT_DB)
                             log_conn.execute(
                                 "INSERT INTO broadcast_log (group_jid, opportunity_title, status) VALUES (?, ?, ?)",
                                 (jid, str(opp['id']), 'sent')
