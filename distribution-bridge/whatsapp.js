@@ -3,18 +3,14 @@
  * Uses whatsapp-web.js to manage a master WA session.
  * Joins groups via invite links and stores Group JIDs to SQLite.
  */
-
-const express = require("express");
-const cors = require("cors");
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode");
 const Database = require("better-sqlite3");
 const path = require("path");
 const fs = require("fs");
-
 const express = require('express');
-const cors = require('cors'); 
-
+const cors = require('cors');
+ 
 const app = express();
 
 app.use(cors({
@@ -23,7 +19,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Parse JSON bodies
 app.use(express.json());
 
 // ── Database Setup ──────────────────────────────────────────────────────────
