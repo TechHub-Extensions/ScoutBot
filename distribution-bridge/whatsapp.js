@@ -86,51 +86,6 @@ function initWhatsApp() {
     initializationError = null;
   });
 
-  // ── NEW HCI UX: Welcome & Teaser Opportunity ──────────────────────────────
-  waClient.on("group_join", async (notification) => {
-    // Check if the bot itself joined
-    if (notification.recipientIds.includes(waClient.info.wid._serialized)) {
-      const chatId = notification.chatId;
-
-      // 1. Send Welcome Message
-      const welcomeMsg = 
-        "👋 *Hi everyone! I'm ScoutBot* 🤖\n\n" +
-        "I'm here to handle the automation of fresh opportunities—scholarships, tech internships, and career growth links—directly to this group.";
-      
-      await waClient.sendMessage(chatId, welcomeMsg);
-
-      // 2. Calculate Next Official Drop Time (3.5 hours from now)
-      const nextDropDate = new Date();
-      nextDropDate.setMinutes(nextDropDate.getMinutes() + 210); // 3.5 hours = 210 mins
-      const nextDropTime = nextDropDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-      // 3. Attach 'whatsapp_queue.db' temporarily to grab a sample
-      try {
-        // 🚨 UPDATED: Use path.join to get the exact location
-        const queueDbPath = path.join(__dirname, 'whatsapp_queue.db');
-        
-        db.prepare(`ATTACH DATABASE '${queueDbPath}' AS queue`).run();
-        const sample = db.prepare("SELECT title, link, deadline FROM queue.pending_broadcasts ORDER BY RANDOM() LIMIT 1").get();
-        db.prepare("DETACH DATABASE queue").run();
-
-        if (sample) {
-          const teaserMsg = 
-            "✨ *SAMPLE OPPORTUNITY* ✨\n\n" +
-            `📌 *${sample.title}*\n` +
-            `📅 Deadline: ${sample.deadline}\n\n` +
-            `🔗 Apply: ${sample.link}\n\n` +
-            `🚀 *The real opportunity drops start at ${nextDropTime}.* Stay tuned! \n\n` +
-            "🤖 _Powered by ScoutBot_";
-
-          await waClient.sendMessage(chatId, teaserMsg);
-        }
-      } 
-      catch (e) {
-        console.error("Failed to send teaser opportunity:", e.message);
-      }
-    }
-  });
-
   waClient.on("auth_failure", (msg) => {
     console.error("❌ WhatsApp auth failure:", msg);
     initializationError = msg;
@@ -141,7 +96,6 @@ function initWhatsApp() {
     console.warn("⚠️  WhatsApp disconnected:", reason);
     clientReady = false;
     
-    // 🚨 CRITICAL FIX: Destroy the dead browser instance to free up RAM
     try {
       console.log("🧹 Cleaning up dead WhatsApp instance...");
       await waClient.destroy();
@@ -149,7 +103,6 @@ function initWhatsApp() {
       console.error("Cleanup error (safe to ignore):", cleanupError.message);
     }
 
-    // Auto-reinitialize after 10s (giving it time to breathe)
     console.log("🔄 Rebooting WhatsApp client in 10 seconds...");
     setTimeout(initWhatsApp, 10000);
   });
@@ -168,13 +121,11 @@ initWhatsApp();
  * Extracts the invite code from a full chat.whatsapp.com/... URL.
  */
 function extractInviteCode(link) {
-  // Captures the ID even if it contains dashes, underscores, or the /invite/ path
   const match = link.match(/chat\.whatsapp\.com\/(?:invite\/)?([a-zA-Z0-9_-]+)/i);
   return match ? match[1] : null;
 }
 
 // ── Routes ───────────────────────────────────────────────────────────────────
-
 
 // GET /status — session health check + QR if needed
 app.get("/status", (req, res) => {
@@ -196,7 +147,7 @@ app.get("/groups/count", (req, res) => {
   }
 });
 
-// POST /register — accept campus + invite link, join group, save JID
+// POST /register — accept campus + invite link, join group, save JID, and fire Teaser
 app.post("/register", async (req, res) => {
   const { campus_name, invite_link } = req.body;
 
@@ -209,22 +160,19 @@ app.post("/register", async (req, res) => {
     return res.status(400).json({ error: "Invalid WhatsApp invite link format." });
   }
 
-  // Check if already registered
   const existing = db
     .prepare("SELECT * FROM campus_groups WHERE invite_link = ?")
     .get(invite_link);
 
-  // UPDATED: Duplicate Check Logic
   if (existing) {
     console.warn(`⚠️ Duplicate registration attempt for link tied to: ${existing.campus_name}`);
     return res.status(409).json({
       duplicate: true,
-      existing_campus: existing.campus_name // Send back the original name tied to this link
+      existing_campus: existing.campus_name
     });
   }
 
   if (!clientReady) {
-    // Save as pending — will be joined when client is ready
     db.prepare(
       "INSERT OR IGNORE INTO campus_groups (campus_name, invite_link) VALUES (?, ?)"
     ).run(campus_name, invite_link);
@@ -237,17 +185,14 @@ app.post("/register", async (req, res) => {
   }
 
   try {
-    // Accept the invite and get group info
     const groupId = await waClient.acceptInvite(inviteCode);
 
-    // Fetch group metadata to get the display name
     let groupName = campus_name + " Group";
     try {
       const chat = await waClient.getChatById(groupId);
       groupName = chat.name || groupName;
     } catch (_) {}
 
-    // Upsert into DB
     db.prepare(
       `INSERT INTO campus_groups (campus_name, invite_link, group_jid, group_name)
        VALUES (?, ?, ?, ?)
@@ -258,9 +203,41 @@ app.post("/register", async (req, res) => {
 
     console.log(`✅ Joined group: ${groupName} (${groupId}) for campus: ${campus_name}`);
 
+    // 🚀 FIRE HCI WELCOME & TEASER IMMEDIATELY AFTER JOINING
+    const welcomeMsg = 
+      "👋 *Hi everyone! I'm ScoutBot* 🤖\n\n" +
+      "I'm here to handle the automation of fresh opportunities—scholarships, tech internships, and career growth links—directly to this group.";
+    
+    await waClient.sendMessage(groupId, welcomeMsg);
+
+    const nextDropDate = new Date();
+    nextDropDate.setMinutes(nextDropDate.getMinutes() + 210); 
+    const nextDropTime = nextDropDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    try {
+      const queueDbPath = path.join(__dirname, 'whatsapp_queue.db');
+      db.prepare(`ATTACH DATABASE '${queueDbPath}' AS queue`).run();
+      const sample = db.prepare("SELECT title, link, deadline FROM queue.pending_broadcasts ORDER BY RANDOM() LIMIT 1").get();
+      db.prepare("DETACH DATABASE queue").run();
+
+      if (sample) {
+        const teaserMsg = 
+          "✨ *SAMPLE OPPORTUNITY* ✨\n\n" +
+          `📌 *${sample.title}*\n` +
+          `📅 Deadline: ${sample.deadline}\n\n` +
+          `🔗 Apply: ${sample.link}\n\n` +
+          `🚀 *The real opportunity drops start at ${nextDropTime}.* Stay tuned! \n\n` +
+          "🤖 _Powered by ScoutBot_";
+
+        await waClient.sendMessage(groupId, teaserMsg);
+      }
+    } catch (e) {
+      console.error("Failed to send teaser opportunity:", e.message);
+    }
+
     return res.json({
       success: true,
-      message: `Successfully joined "${groupName}"`,
+      message: `Successfully joined "${groupName}" and sent teaser.`,
       group_jid: groupId,
       group_name: groupName,
       invite_link,
@@ -268,19 +245,18 @@ app.post("/register", async (req, res) => {
   } catch (err) {
     console.error("Error joining group:", err.message);
 
-    // Still save the record even if join failed (may already be a member)
     db.prepare(
       "INSERT OR IGNORE INTO campus_groups (campus_name, invite_link) VALUES (?, ?)"
     ).run(campus_name, invite_link);
 
     return res.status(500).json({
-      error: "Failed to join WhatsApp group. You may already be a member, or the link may be expired.",
+      error: "Failed to join WhatsApp group.",
       detail: err.message,
     });
   }
 });
 
-// GET /groups — list all registered groups (for admin / broadcast.py)
+// GET /groups — list all registered groups
 app.get("/groups", (req, res) => {
   const groups = db
     .prepare("SELECT * FROM campus_groups WHERE is_active = 1 ORDER BY joined_at DESC")
@@ -294,7 +270,7 @@ app.delete("/groups/:id", (req, res) => {
   res.json({ success: true });
 });
 
-// GET /groups/export — export JIDs as JSON for broadcast.py
+// GET /groups/export — export JIDs as JSON
 app.get("/groups/export", (req, res) => {
   const jids = db
     .prepare("SELECT group_jid, campus_name, group_name FROM campus_groups WHERE is_active = 1 AND group_jid IS NOT NULL")
@@ -302,7 +278,7 @@ app.get("/groups/export", (req, res) => {
   res.json(jids);
 });
 
-// POST /send — Broadcast a message to a specific group JID
+// POST /send — Broadcast a message
 app.post("/send", async (req, res) => {
   const { group_jid, message } = req.body;
 
@@ -315,13 +291,11 @@ app.post("/send", async (req, res) => {
   }
 
   try {
-    // Send the message via whatsapp-web.js
     await waClient.sendMessage(group_jid, message);
 
-    // Log the broadcast in SQLite
     db.prepare(
       "INSERT INTO broadcast_log (group_jid, opportunity_title, status) VALUES (?, ?, ?)"
-    ).run(group_jid, "Test Broadcast", "sent");
+    ).run(group_jid, "Broadcast", "sent");
 
     console.log(`✅ Message dropped into ${group_jid}`);
     return res.json({ success: true, message: "Broadcast successful." });
@@ -331,15 +305,9 @@ app.post("/send", async (req, res) => {
   }
 });
 
-// ── Start Server ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`\n🤖 ScoutBot Distribution Server running on http://localhost:${PORT}`);
-  console.log(`   GET  /status       — WhatsApp session status + QR code`);
-  console.log(`   POST /register     — Register campus WhatsApp group`);
-  console.log(`   GET  /groups       — List all registered groups`);
-  console.log(`   GET  /groups/export — Export JIDs for broadcast.py`);
-  console.log(`   POST /send         — Broadcast message to a group\n`);
 });
 
 module.exports = { app, db };
