@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://40.81.26.29:3001";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 const WA_INVITE_REGEX = /chat\.whatsapp\.com\/(?:invite\/)?([a-zA-Z0-9_-]+)/i;
 
 // ── Lottie-style success animation (pure CSS) ─────────────────────────────────
