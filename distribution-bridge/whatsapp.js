@@ -12,12 +12,18 @@ const Database = require("better-sqlite3");
 const path = require("path");
 const fs = require("fs");
 
+const express = require('express');
+const cors = require('cors'); 
+
 const app = express();
+
 app.use(cors({
   origin: '*', // Allows all domains (like Vercel) to access the API
   methods: ['GET', 'POST', 'DELETE', 'UPDATE', 'PUT', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Parse JSON bodies
 app.use(express.json());
 
 // ── Database Setup ──────────────────────────────────────────────────────────
