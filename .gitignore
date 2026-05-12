@@ -1,7 +1,7 @@
 # Secrets — never commit these
 .env
 service_account.json
-*.json
+#*.json
 !requirements*.txt
 
 # Python
@@ -28,6 +28,7 @@ Thumbs.db
 #Olamide -- touchd this file to add more ignores as needed.
 
 # Node modules
+node_modules/
 node_modules/
 */node_modules/
 
