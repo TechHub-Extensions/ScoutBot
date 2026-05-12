@@ -5,6 +5,7 @@ import logging
 import sqlite3
 import datetime
 import os
+import re  # 🚨 NEW: Import the Regular Expression library
 
 # --- CONFIGURATION ---
 BACKEND_URL = "http://localhost:3001"
@@ -30,31 +31,65 @@ def get_unseen_opportunities(group_jid):
         # Connect to the Scrapy interceptor DB
         conn = sqlite3.connect(QUEUE_DB)
         
-        # 🚨 UPDATED: Attach the Node database to cross-reference what this group has seen
-        conn.execute("ATTACH DATABASE ? AS scoutdb", (SCOUT_DB,))
+        # 🚨 UPDATED: Fixed SQLite syntax for ATTACH DATABASE
+        conn.execute(f"ATTACH DATABASE '{SCOUT_DB}' AS scoutdb")
         cursor = conn.cursor()
 
-        # 🚨 UPDATED: Grab 3 unseen, active opportunities
+        # 🚨 UPDATED: Broad SQL query to grab unseen, active/rolling links
         cursor.execute("""
             SELECT id, title, link, deadline 
             FROM pending_broadcasts 
-            WHERE deadline > DATE('now')
-            AND id NOT IN (
+            WHERE id NOT IN (
                 SELECT opportunity_title FROM scoutdb.broadcast_log WHERE group_jid = ?
             )
+            AND (
+                deadline > DATE('now') 
+                OR deadline IS NULL 
+                OR deadline = '' 
+                OR LOWER(deadline) LIKE '%rolling%'
+            )
             ORDER BY RANDOM() 
-            LIMIT 3
         """, (group_jid,))
         
         rows = cursor.fetchall()
 
+        # 🚨 NEW: Dynamic Year Comparison Engine
+        current_year = datetime.datetime.now().year
+        
         for row in rows:
-            opportunities.append({
-                "id": row[0],
-                "title": row[1],
-                "link": row[2],
-                "deadline": row[3]
-            })
+            opp_id = row[0]
+            title = row[1]
+            link = row[2]
+            deadline = row[3] if row[3] else ""
+            
+            is_valid = True
+            
+            # Step A: Find any 4-digit year starting with 20 (e.g., 2024, 2030) in both title and deadline
+            text_to_scan = f"{title} {deadline}"
+            found_years = re.findall(r'\b(20\d{2})\b', text_to_scan)
+            
+            # Step B: Compare found years to the current clock
+            for year_str in found_years:
+                if int(year_str) < current_year:
+                    is_valid = False
+                    break # It's an old year, scrap it instantly
+                    
+            # Step C: The "Rolling" Override
+            if "rolling" in deadline.lower():
+                is_valid = True
+
+            # Step D: If it survived the bouncer, add it to the final drop
+            if is_valid:
+                opportunities.append({
+                    "id": opp_id,
+                    "title": title,
+                    "link": link,
+                    "deadline": deadline
+                })
+                
+                # Stop checking once we have exactly 3 pristine opportunities
+                if len(opportunities) == 3:
+                    break
 
         conn.close()
 
