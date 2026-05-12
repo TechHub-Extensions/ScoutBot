@@ -137,11 +137,21 @@ function initWhatsApp() {
     clientReady = false;
   });
 
-  waClient.on("disconnected", (reason) => {
+  waClient.on("disconnected", async (reason) => {
     console.warn("⚠️  WhatsApp disconnected:", reason);
     clientReady = false;
-    // Auto-reinitialize after 5s
-    setTimeout(initWhatsApp, 5000);
+    
+    // 🚨 CRITICAL FIX: Destroy the dead browser instance to free up RAM
+    try {
+      console.log("🧹 Cleaning up dead WhatsApp instance...");
+      await waClient.destroy();
+    } catch (cleanupError) {
+      console.error("Cleanup error (safe to ignore):", cleanupError.message);
+    }
+
+    // Auto-reinitialize after 10s (giving it time to breathe)
+    console.log("🔄 Rebooting WhatsApp client in 10 seconds...");
+    setTimeout(initWhatsApp, 10000);
   });
 
   waClient.initialize().catch((err) => {
