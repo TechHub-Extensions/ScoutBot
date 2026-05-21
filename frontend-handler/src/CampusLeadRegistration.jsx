@@ -131,7 +131,14 @@ export default function CampusLeadRegistration() {
         setError(
           `This invite link is already registered to "${data.existing_campus}". Please provide a unique WhatsApp group link for ${campusName.trim()}.`
         );
-      } else if (data.success || data.pending) {
+      } 
+      // 🚨 NEW: Explicitly handle Community Announcement/Dead Links (500 Error)
+      else if (!res.ok && res.status === 500) {
+        setError(
+          "❌ Invalid Link Format! Please ensure this is a Standard WhatsApp Group (even if restricted to Admins-only). ScoutBot cannot join Community Announcement Channels or expired links."
+        );
+      }
+      else if (data.success || data.pending) {
         setSuccess({
           groupName: data.group_name || campusName,
           inviteLink: inviteLink.trim(),

@@ -205,8 +205,13 @@ app.post("/register", async (req, res) => {
 
     // 🚀 FIRE HCI WELCOME & TEASER IMMEDIATELY AFTER JOINING
     const welcomeMsg = 
-      "👋 *Hi everyone! I'm ScoutBot* 🤖\n\n" +
-      "I'm here to handle the automation of fresh opportunities—scholarships, tech internships, and career growth links—directly to this group.";
+      "*Hi everyone! I'm ScoutBot* 🤖\n\n" +
+      "I'm your new automated assistant, here to drop fresh opportunities directly into this chat so you never miss out."+
+      "*What I'll be bringing you:*"+
+      "🎓 Scholarships & Fellowships"+
+      "💻 Tech Internships"+
+      "🚀 Career Growth Resources"+
+      "I operate in the background and check for new links every few hours. Keep your notifications on and let the opportunities come to you!";
     
     await waClient.sendMessage(groupId, welcomeMsg);
 
