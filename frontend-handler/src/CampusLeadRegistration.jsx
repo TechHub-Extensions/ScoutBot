@@ -65,6 +65,7 @@ function StatusDot({ ready }) {
 export default function CampusLeadRegistration() {
   const [campusName, setCampusName] = useState("");
   const [inviteLink, setInviteLink] = useState("");
+  const [preference, setPreference] = useState("both"); // 🚨 NEW: State for V2 filter
   const [linkValid, setLinkValid] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -122,20 +123,19 @@ export default function CampusLeadRegistration() {
         body: JSON.stringify({
           campus_name: campusName.trim(),
           invite_link: inviteLink.trim(),
+          preference: preference, // 🚨 NEW: Sending the preference to Node
         }),
       });
       const data = await res.json();
 
-      // 🚨 NEW: Explicitly handle duplicate registrations
       if (data.duplicate) {
         setError(
           `This invite link is already registered to "${data.existing_campus}". Please provide a unique WhatsApp group link for ${campusName.trim()}.`
         );
       } 
-      // 🚨 NEW: Explicitly handle Community Announcement/Dead Links (500 Error)
       else if (!res.ok && res.status === 500) {
         setError(
-          "❌ Invalid Link Format! Please ensure this is a Standard WhatsApp Group (even if restricted to Admins-only). ScoutBot cannot join Community Announcement Channels or expired links."
+          "❌ Invalid Link Format! Please ensure this is a Standard WhatsApp Group. ScoutBot cannot join Community Announcement Channels."
         );
       }
       else if (data.success || data.pending) {
@@ -231,12 +231,27 @@ export default function CampusLeadRegistration() {
                 Must be a valid <strong>chat.whatsapp.com/...</strong> link
               </p>
             )}
-            {linkValid === true && (
-              <p className="field-hint success">Looks great ✓</p>
-            )}
           </div>
 
-          {/* 🚨 UPDATED: Slightly tweaked error flexbox so long text wraps beautifully */}
+          {/* 🚨 NEW: The Academic Filter Dropdown */}
+          <div className="field">
+            <label htmlFor="preference" className="label">
+              What opportunities does your group need?
+            </label>
+            <select
+              id="preference"
+              value={preference}
+              onChange={(e) => setPreference(e.target.value)}
+              className="input"
+              style={{ cursor: "pointer", backgroundColor: "#fff" }}
+              required
+            >
+              <option value="both">Both (Undergrad & Grad/PhD)</option>
+              <option value="undergrad">Undergraduate & Internships Only</option>
+              <option value="grad">Graduate, Masters & PhD Only</option>
+            </select>
+          </div>
+
           {error && (
             <div className="alert" style={{ display: 'flex', alignItems: 'flex-start', textAlign: 'left', lineHeight: '1.4' }}>
               <span className="alert-icon" style={{ marginTop: '2px' }}>⚠</span>
