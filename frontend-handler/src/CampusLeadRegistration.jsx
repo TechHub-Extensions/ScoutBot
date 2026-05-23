@@ -65,7 +65,7 @@ function StatusDot({ ready }) {
 export default function CampusLeadRegistration() {
   const [campusName, setCampusName] = useState("");
   const [inviteLink, setInviteLink] = useState("");
-  const [preference, setPreference] = useState("both"); // 🚨 NEW: State for V2 filter
+  const [preference, setPreference] = useState("both");
   const [linkValid, setLinkValid] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -123,7 +123,7 @@ export default function CampusLeadRegistration() {
         body: JSON.stringify({
           campus_name: campusName.trim(),
           invite_link: inviteLink.trim(),
-          preference: preference, // 🚨 NEW: Sending the preference to Node
+          preference: preference,
         }),
       });
       const data = await res.json();
@@ -233,7 +233,6 @@ export default function CampusLeadRegistration() {
             )}
           </div>
 
-          {/* 🚨 NEW: The Academic Filter Dropdown */}
           <div className="field">
             <label htmlFor="preference" className="label">
               What opportunities does your group need?
@@ -242,8 +241,18 @@ export default function CampusLeadRegistration() {
               id="preference"
               value={preference}
               onChange={(e) => setPreference(e.target.value)}
-              className="input"
-              style={{ cursor: "pointer", backgroundColor: "#fff" }}
+              style={{ 
+                cursor: "pointer", 
+                backgroundColor: "#fff",
+                width: "100%", 
+                padding: "12px", 
+                border: "1px solid #ccc", 
+                borderRadius: "8px", 
+                fontSize: "16px",
+                display: "block",
+                boxSizing: "border-box",
+                marginTop: "4px"
+              }}
               required
             >
               <option value="both">Both (Undergrad & Grad/PhD)</option>
