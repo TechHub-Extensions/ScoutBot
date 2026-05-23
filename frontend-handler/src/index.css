@@ -408,3 +408,11 @@ body {
   margin-top: 4px;
   text-align: center;
 }
+
+/* ── Fix for hidden dropdowns ────────────────────────────────────────────── */
+select.input {
+  -webkit-appearance: menulist !important;
+  appearance: menulist !important;
+  background-color: #fff !important;
+  cursor: pointer !important;
+}
