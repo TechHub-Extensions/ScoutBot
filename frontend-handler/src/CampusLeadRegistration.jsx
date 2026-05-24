@@ -20,6 +20,7 @@ function SuccessAnimation({ groupName, inviteLink }) {
           Congratulations! We successfully added <strong>{groupName || "your group"}</strong> to the ScoutBot network.
         </p>
         
+        {/* Minimalist Admin Instruction */}
         <p style={{ margin: '16px 0 0 0', fontSize: '13px', color: '#666', fontWeight: '500' }}>
           NOTE: Make ScoutBot an Admin (+234 816 449 9922).
         </p>
@@ -40,13 +41,17 @@ function SuccessAnimation({ groupName, inviteLink }) {
         Open in WhatsApp to Make Admin
       </a>
 
-      <button className="register-another" onClick={() => window.location.reload()}>
+      <button
+        className="register-another"
+        onClick={() => window.location.reload()}
+      >
         Register another campus
       </button>
     </div>
   );
 }
 
+// ── Status Badge ──────────────────────────────────────────────────────────────
 function StatusDot({ ready }) {
   return (
     <div className={`status-dot-wrap ${ready ? "online" : "offline"}`}>
@@ -56,6 +61,7 @@ function StatusDot({ ready }) {
   );
 }
 
+// ── Main Component ────────────────────────────────────────────────────────────
 export default function CampusLeadRegistration() {
   const [campusName, setCampusName] = useState("");
   const [inviteLink, setInviteLink] = useState("");
@@ -67,6 +73,9 @@ export default function CampusLeadRegistration() {
   const [sessionReady, setSessionReady] = useState(false);
   const [qrCode, setQrCode] = useState(null);
 
+  const inviteRef = useRef(null);
+
+  // Poll session status
   useEffect(() => {
     const poll = async () => {
       try {
@@ -74,70 +83,206 @@ export default function CampusLeadRegistration() {
         const data = await res.json();
         setSessionReady(data.ready);
         setQrCode(data.qr || null);
-      } catch (_) { setSessionReady(false); }
+      } catch (_) {
+        setSessionReady(false);
+      }
     };
     poll();
     const id = setInterval(poll, 4000);
     return () => clearInterval(id);
   }, []);
 
+  // Real-time invite link validation
   const handleInviteChange = (val) => {
     setInviteLink(val);
-    setLinkValid(val ? WA_INVITE_REGEX.test(val.trim()) : null);
+    if (!val) { 
+      setLinkValid(null); 
+      return; 
+    }
+    setLinkValid(WA_INVITE_REGEX.test(val.trim()));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    if (!campusName.trim() || !linkValid) { setError("Check your inputs."); return; }
+
+    if (!campusName.trim()) { 
+      setError("Please enter your campus name."); 
+      return; 
+    }
+    if (!linkValid) { 
+      setError("Please enter a valid WhatsApp invite link."); 
+      return; 
+    }
+
     setLoading(true);
     try {
       const res = await fetch(`${BACKEND_URL}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ campus_name: campusName.trim(), invite_link: inviteLink.trim(), preference }),
+        body: JSON.stringify({
+          campus_name: campusName.trim(),
+          invite_link: inviteLink.trim(),
+          preference: preference,
+        }),
       });
       const data = await res.json();
-      if (data.duplicate) setError(`Already registered to: ${data.existing_campus}`);
-      else if (data.success || data.pending) setSuccess({ groupName: data.group_name || campusName, inviteLink: inviteLink.trim(), pending: data.pending });
-      else setError(data.error || "Error.");
-    } catch { setError("Server unreachable."); }
-    setLoading(false);
+
+      // 🚨 NEW: Explicitly handle duplicate registrations
+      if (data.duplicate) {
+        setError(
+          `This invite link is already registered to "${data.existing_campus}". Please provide a unique WhatsApp group link for ${campusName.trim()}.`
+        );
+      } 
+      // 🚨 NEW: Explicitly handle Community Announcement/Dead Links (500 Error)
+      else if (!res.ok && res.status === 500) {
+        setError(
+          "❌ Invalid Link Format! Please ensure this is a Standard WhatsApp Group (even if restricted to Admins-only). ScoutBot cannot join Community Announcement Channels or expired links."
+        );
+      }
+      else if (data.success || data.pending) {
+        setSuccess({
+          groupName: data.group_name || campusName,
+          inviteLink: inviteLink.trim(),
+          pending: data.pending,
+        });
+      } else {
+        setError(data.error || "Something went wrong. Please try again.");
+      }
+    } catch (err) {
+      setError("Could not reach the server. Please check your connection.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (success) return <div className="page"><div className="card"><Header /><SuccessAnimation {...success} /><Footer /></div></div>;
+  if (success) {
+    return (
+      <div className="page">
+        <div className="card">
+          <Header />
+          <SuccessAnimation groupName={success.groupName} inviteLink={success.inviteLink} />
+          {success.pending && (
+            <p className="pending-note">
+              ⏳ Your group will be joined once the ScoutBot session is live.
+            </p>
+          )}
+          
+          {/* Footer injected into Success View */}
+          <Footer />
+          
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page">
       <div className="card">
         <Header />
         <StatusDot ready={sessionReady} />
-        {qrCode && <div className="qr-wrap"><p className="qr-label">Scan to activate ScoutBot</p><img src={qrCode} alt="QR" className="qr-img" /></div>}
-        <form onSubmit={handleSubmit} className="form">
-          <div className="field">
-            <label className="label">Campus Name</label>
-            <input className="input" value={campusName} onChange={(e) => setCampusName(e.target.value)} required />
+
+        {qrCode && (
+          <div className="qr-wrap">
+            <p className="qr-label">Scan to activate ScoutBot</p>
+            <img src={qrCode} alt="WhatsApp QR" className="qr-img" />
           </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="form" noValidate>
           <div className="field">
-            <label className="label">WhatsApp Group Invite Link</label>
-            <input className="input" type="url" value={inviteLink} onChange={(e) => handleInviteChange(e.target.value)} required />
+            <label htmlFor="campus" className="label">
+              Campus Name
+            </label>
+            <input
+              id="campus"
+              type="text"
+              value={campusName}
+              onChange={(e) => setCampusName(e.target.value)}
+              placeholder="e.g. Obafemi Awolowo University"
+              className="input"
+              autoComplete="organization"
+              maxLength={80}
+              required
+            />
           </div>
+
           <div className="field">
-            <label className="label">What opportunities does your group need?</label>
-            <select
-              value={preference}
-              onChange={(e) => setPreference(e.target.value)}
-              style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #ccc", fontSize: "16px", marginTop: "8px", display: "block" }}
-            >
-              <option value="both">Both (Undergrad & Grad/PhD)</option>
-              <option value="undergrad">Undergraduate & Internships Only</option>
-              <option value="grad">Graduate, Masters & PhD Only</option>
-            </select>
+            <label htmlFor="invite" className="label">
+              WhatsApp Group Invite Link
+            </label>
+            <div className="input-wrap">
+              <input
+                id="invite"
+                ref={inviteRef}
+                type="url"
+                value={inviteLink}
+                onChange={(e) => handleInviteChange(e.target.value)}
+                placeholder="https://chat.whatsapp.com/..."
+                className={`input ${
+                  linkValid === true ? "input-valid" : linkValid === false ? "input-invalid" : ""
+                }`}
+                autoComplete="url"
+                required
+              />
+              {linkValid === true && <span className="input-icon valid">✓</span>}
+              {linkValid === false && <span className="input-icon invalid">✗</span>}
+            </div>
+            {linkValid === false && (
+              <p className="field-hint error">
+                Must be a valid <strong>chat.whatsapp.com/...</strong> link
+              </p>
+            )}
+            {linkValid === true && (
+              <p className="field-hint success">Looks great ✓</p>
+            )}
           </div>
-          {error && <div className="alert">⚠ {error}</div>}
-          <button type="submit" className="submit-btn" disabled={loading}>{loading ? "Joining..." : "Register Group →"}</button>
+
+          <div className="field">
+            <label htmlFor="preference" className="label">
+              What opportunities does your group need?
+            </label>
+            <div className="input-wrap">
+              <select
+                id="preference"
+                value={preference}
+                onChange={(e) => setPreference(e.target.value)}
+                className="input"
+                required
+              >
+                <option value="both">Both (Undergrad & Grad/PhD)</option>
+                <option value="undergrad">Undergraduate & Internships Only</option>
+                <option value="grad">Graduate, Masters & PhD Only</option>
+              </select>
+            </div>
+          </div>
+
+          {/* 🚨 UPDATED: Slightly tweaked error flexbox so long text wraps beautifully */}
+          {error && (
+            <div className="alert" style={{ display: 'flex', alignItems: 'flex-start', textAlign: 'left', lineHeight: '1.4' }}>
+              <span className="alert-icon" style={{ marginTop: '2px' }}>⚠</span>
+              <span>{error}</span>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className={`submit-btn ${loading ? "loading" : ""}`}
+            disabled={loading || !campusName || !linkValid}
+          >
+            {loading ? (
+              <>
+                <span className="spinner" /> Joining Group…
+              </>
+            ) : (
+              "Register Campus Group →"
+            )}
+          </button>
         </form>
+
+        {/* Footer injected into Main View */}
         <Footer />
+
       </div>
     </div>
   );
@@ -146,16 +291,97 @@ export default function CampusLeadRegistration() {
 function Header() {
   return (
     <div className="header">
+      <div className="logo-wrap">
+        <div className="logo-icon">
+          <svg width="28" height="28" viewBox="0 0 40 40" fill="none">
+            <circle cx="20" cy="20" r="20" fill="#0066F5" />
+            <path d="M12 20l5 5 11-11" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+            <circle cx="20" cy="20" r="7" stroke="white" strokeWidth="1.5" fill="none" opacity="0.4"/>
+          </svg>
+        </div>
+        <span className="logo-text">ScoutBot</span>
+      </div>
       <h1 className="title">Campus Lead Portal</h1>
-      <p className="subtitle">Curated opportunities delivered automatically.</p>
+      <p className="subtitle">
+        Connect your WhatsApp group to receive curated opportunities — internships,
+        scholarships, and fellowships — automatically.
+      </p>
     </div>
   );
 }
 
+// ── Standalone Footer Component ───────────────────────────────────────────────
 function Footer() {
+  const [communityCount, setCommunityCount] = useState(null);
+
+  useEffect(() => {
+    // Fetch live metrics directly from the backend
+    fetch(`${BACKEND_URL}/groups/count`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && typeof data.count === 'number') {
+          setCommunityCount(data.count);
+        }
+      })
+      .catch(() => console.error("Metrics silently failed to load"));
+  }, []);
+
   return (
-    <div className="footer-note" style={{ marginTop: '28px', textAlign: 'center', color: '#6B7280', fontSize: '13px' }}>
-      <p>© {new Date().getFullYear()} Olamide Fasogbon</p>
+    <div className="footer-note" style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      gap: '8px', 
+      alignItems: 'center', 
+      marginTop: '28px',
+      paddingBottom: '8px',
+      color: '#6B7280' 
+    }}>
+      
+      {/* 🟢 Live Metrics Badge */}
+      {communityCount !== null && communityCount > 0 && (
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '8px', 
+          backgroundColor: '#F3F4F6', 
+          padding: '6px 14px', 
+          borderRadius: '20px', 
+          marginBottom: '4px',
+          border: '1px solid #E5E7EB'
+        }}>
+          <span style={{ 
+            display: 'inline-block', 
+            width: '8px', 
+            height: '8px', 
+            backgroundColor: '#10B981', 
+            borderRadius: '50%', 
+            boxShadow: '0 0 6px rgba(16, 185, 129, 0.6)' 
+          }}></span>
+          <span style={{ fontSize: '13px', fontWeight: '600', color: '#374151', letterSpacing: '0.2px' }}>
+            Powering {communityCount} active {communityCount === 1 ? 'community' : 'communities'}
+          </span>
+        </div>
+      )}
+
+      <p style={{ margin: 0, fontSize: '13px', textAlign: 'center', lineHeight: '1.4' }}>
+        By registering, your group will receive automated broadcasts. No spam. Unsubscribe anytime.
+      </p>
+      
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: '500', opacity: 0.9, letterSpacing: '0.3px', marginTop: '2px', color: '#374151' }}>
+        <span>© {new Date().getFullYear()} Olamide Fasogbon</span>
+        <a 
+          href="https://www.linkedin.com/in/olamidefasogbon" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          style={{ display: 'flex', alignItems: 'center', color: '#0066F5', transition: 'opacity 0.2s' }}
+          onMouseEnter={(e) => e.currentTarget.style.opacity = 0.7}
+          onMouseLeave={(e) => e.currentTarget.style.opacity = 1}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+          </svg>
+        </a>
+      </div>
     </div>
   );
 }
