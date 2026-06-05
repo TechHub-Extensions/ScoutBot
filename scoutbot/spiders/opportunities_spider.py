@@ -1,34 +1,30 @@
 """
-ScoutBot — opportunities_spider.py  (SWE-List Edition)
-=======================================================
+ScoutBot main spider — students only.
 
-Scrapes DIRECT sources only — no aggregator roundups.
-Every URL points to an official programme, company careers page,
-foundation portal, or government scholarship body.
+Scrapes scholarships, fellowships, internships, bootcamps, and
+apprenticeships for Nigerian students. Startup/accelerator/VC content
+is intentionally excluded.
 
-Coverage:
-  • Nigeria-national opportunities
-  • Pan-African opportunities (must be open to Nigerians)
-  • Global / international — Africa, South America, Asia, Europe, West
-  • Categories: Scholarships · Fellowships · Internships · Bootcamps ·
-    Grants · Accelerators · Incubators · Pitch Competitions · VC Funding
+Sources:
+  - International aggregators (scholars4dev, opportunitydesk, etc.)
+  - Nigerian portals (scholarshipregion, myschoolng)
+  - Asia-specific scholarship pages
+  - Reddit RSS feeds (scholarships, internships, gradadmissions, etc.)
 
-Nigeria filter:
-  Any opportunity that explicitly restricts eligibility to non-Nigerian
-  countries or regions is dropped. Opportunities with no geographic
-  restriction pass through (they are open to all).
-
-SWE-List quality rules:
-  • application_link always points directly to the apply / programme page
-  • summary is a concise one-liner, not a scraped paragraph blob
-  • stale / past-deadline entries are dropped at parse time
+Quality rules:
+  - application_link is the DIRECT apply URL on the org/company site,
+    not the blog post URL
+  - Posts older than 30 days are skipped at parse time
+  - Deadlines already past are dropped immediately
+  - Past-year titles are dropped at the URL-scan stage
 """
 
 import re
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 import scrapy
+
 from scoutbot.items import OpportunityItem
 
 try:
@@ -38,133 +34,114 @@ except ImportError:
     HAS_DATEUTIL = False
 
 
-# ── Keyword banks ────────────────────────────────────────────────────────────
-
 INDUSTRY_KEYWORDS = {
-    "Startup": [
-        "startup", "start-up", "founder", "entrepreneur", "early-stage",
-        "pre-seed", "seed round", "series a", "incubator", "accelerator",
-        "venture capital", "vc fund", "angel investor", "scale-up", "scaleup",
-        "innovation hub", "pitch competition", "hackathon",
-    ],
-    "Tech": [
-        "tech", "software", "coding", "developer", "data", "ai", "digital",
-        "fintech", "ict", "computer", "stem", "cyber", "programming",
-        "machine learning", "saas", "deeptech", "web3", "blockchain",
-        "open source", "cloud", "devops",
-    ],
-    "Engineering": [
-        "engineer", "mechanical", "civil", "electrical", "petroleum",
-        "chemical", "structural", "architecture", "aerospace",
-    ],
-    "Law": [
-        "law", "legal", "justice", "llb", "llm", "barrister", "solicitor",
-        "rights", "policy", "governance",
-    ],
-    "Finance": [
-        "finance", "fintech", "accounting", "economics", "business",
-        "commerce", "banking", "investment", "microfinance", "treasury",
-    ],
-    "Medicine": [
-        "medicine", "health", "medical", "nursing", "pharma",
-        "biology", "public health", "research", "clinical", "global health",
-    ],
+    "Tech": ["tech", "software", "coding", "developer", "data", "ai", "digital",
+             "fintech", "ict", "computer", "stem", "cyber", "programming",
+             "machine learning", "saas", "deeptech", "deep tech", "web3", "blockchain"],
+    "Engineering": ["engineer", "mechanical", "civil", "electrical", "petroleum",
+                    "chemical", "structural", "architecture"],
+    "Law": ["law", "legal", "justice", "llb", "llm", "barrister", "solicitor",
+            "rights", "policy"],
+    "Finance": ["finance", "accounting", "economics", "business",
+                "commerce", "banking", "investment", "microfinance"],
+    "Medicine": ["medicine", "health", "medical", "nursing", "pharma",
+                 "biology", "public health", "research", "clinical"],
 }
 
+# Student-focused categories only — no startup/VC/accelerator content
 CATEGORY_MAP = [
-    ("venture capital",      "VC Funding"),
-    ("vc fund",              "VC Funding"),
-    ("seed round",           "VC Funding"),
-    ("series a",             "VC Funding"),
-    ("pre-seed",             "VC Funding"),
-    ("angel invest",         "VC Funding"),
-    ("equity investment",    "VC Funding"),
-    ("incubator",            "Incubator"),
-    ("accelerator",          "Accelerator"),
-    ("pitch competition",    "Pitch Competition"),
-    ("pitch contest",        "Pitch Competition"),
-    ("startup competition",  "Pitch Competition"),
-    ("startup challenge",    "Pitch Competition"),
-    ("hackathon",            "Pitch Competition"),
-    ("scholarship",          "Scholarship"),
-    ("fellowships",          "Fellowship"),
-    ("fellowship",           "Fellowship"),
-    ("internship",           "Internship"),
-    ("industrial training",  "Internship"),
-    ("bootcamp",             "Bootcamp"),
-    ("boot-camp",            "Bootcamp"),
-    ("coding camp",          "Bootcamp"),
-    ("apprentice",           "Apprenticeship"),
-    ("conference",           "Conference"),
-    ("summit",               "Conference"),
-    ("grant",                "Grant"),
-    ("award",                "Award"),
-    ("competition",          "Competition"),
-    ("programme",            "Fellowship"),
-    ("program",              "Fellowship"),
-    ("training",             "Internship"),
-    ("funding",              "Grant"),
+    ("scholarship", "Scholarship"),
+    ("fellowships", "Fellowship"),
+    ("fellowship", "Fellowship"),
+    ("internship", "Internship"),
+    ("internships", "Internship"),
+    ("industrial training", "Internship"),
+    ("bootcamp", "Bootcamp"),
+    ("boot-camp", "Bootcamp"),
+    ("coding camp", "Bootcamp"),
+    ("apprentice", "Apprenticeship"),
+    ("conference", "Conference"),
+    ("summit", "Conference"),
+    ("award", "Award"),
+    ("competition", "Competition"),
+    ("exchange", "Fellowship"),
+    ("graduate programme", "Fellowship"),
+    ("graduate program", "Fellowship"),
+    ("programme", "Fellowship"),
+    ("program", "Fellowship"),
+    ("training", "Internship"),
+]
+
+# Categories that are startup/funding — items in these categories are dropped
+EXCLUDED_CATEGORIES = {
+    "VC Funding", "Incubator", "Accelerator", "Pitch Competition", "Grant",
+}
+
+RANGE_KEYWORDS_INTL = [
+    "international", "study abroad", "global", "worldwide", "overseas",
+    "fulbright", "commonwealth", "uk ", "usa", "europe", "canada", "australia",
+    "fully funded", "full scholarship",
+    "china", "japan", "korea", "india", "asia", "singapore", "malaysia",
+    "indonesia", "thailand", "taiwan", "hong kong", "vietnam", "bangladesh",
+    "chinese government", "mext", "kgsp", "iccr", "csc scholarship",
+    "adb ", "asian development",
 ]
 
 EDU_KEYWORDS = {
-    "PhD":      ["phd", "doctorate", "doctoral", "post-doctoral", "postdoctoral"],
-    "Masters":  ["masters", "master's", "msc", "mba", "postgraduate", "graduate"],
-    "HND/OND":  ["hnd", "ond", "polytechnic", "national diploma"],
+    "PhD": ["phd", "doctorate", "doctoral", "post-doctoral", "postdoctoral"],
+    "Masters": ["masters", "master's", "msc", "mba", "postgraduate",
+                "post-graduate", "graduate"],
+    "HND/OND": ["hnd", "ond", "polytechnic", "national diploma"],
     "Bachelor": ["bachelor", "undergraduate", "bsc", "beng", "llb", "first degree"],
-    "Any":      ["any level", "all levels", "open to all", "any background"],
+    "Any": ["any level", "all levels", "all applicants", "any background", "open to all"],
 }
 
-# Regions used for the Range column
-INTL_KEYWORDS = [
-    "international", "global", "worldwide", "overseas", "study abroad",
-    "uk ", " usa", "united states", "europe", "canada", "australia",
-    "fully funded", "full scholarship",
-    "china", "japan", "korea", "india", "asia", "singapore", "malaysia",
-    "indonesia", "thailand", "taiwan", "hong kong", "vietnam",
-    "brazil", "south america", "latin america",
-    "germany", "france", "netherlands", "sweden", "norway",
-    "commonwealth", "fulbright", "daad", "mext", "kgsp", "csc scholarship",
-    "erasmus", "chevening", "gates cambridge", "rhodes",
+# URL patterns that indicate a listing/category page rather than an individual opportunity
+CATEGORY_URL_PATTERNS = [
+    "/category/", "/tag/", "/page/", "?page=", "#", "/author/",
+    "facebook.com/groups", "linkedin.com/company", "twitter.com",
 ]
 
 PAST_YEAR_RE = re.compile(r"\b(202[0-4])\b")
 
-# Words that flag an opportunity as explicitly excluding Nigerians / West Africa
-EXCLUSION_SIGNALS = [
-    "east africa only", "east african only",
-    "southern africa only", "southern african only",
-    "north africa only", "francophone africa",
-    "lusophone", "portuguese-speaking africa",
-    "us citizens only", "uk citizens only",
-    "eu citizens only", "european citizens only",
-    "domestic students only", "us residents only",
-    "must be a us citizen", "must be a uk citizen",
+# Maximum age of a scraped post before we skip it (days)
+MAX_POST_AGE_DAYS = 30
+
+# Reddit subreddits (student-focused only)
+REDDIT_SUBREDDITS = [
+    "scholarships",
+    "Internships",
+    "gradadmissions",
+    "studyabroad",
+    "opportunities",
+    "Nigeria",
+    "Africa",
+    "phd",
 ]
 
-# Category-URL fragments that signal a listing page, not a detail page
-CATEGORY_URL_PATTERNS = [
-    "/category/", "/tag/", "/page/", "?page=", "#comments",
-    "/author/", "facebook.com/groups", "linkedin.com/company",
-    "twitter.com", "/feed/", ".rss",
+REDDIT_OPPORTUNITY_KEYWORDS = [
+    "scholarship", "fellowship", "internship", "funded", "fully funded",
+    "apply", "application", "deadline", "stipend", "bootcamp",
+    "award", "opportunity", "programme", "program",
+    "open to", "eligible", "phd", "masters", "msc", "mba", "undergraduate",
+    "research", "exchange", "bursary", "training",
 ]
 
 
-# ── Helper functions ─────────────────────────────────────────────────────────
-
-def is_category_url(url: str) -> bool:
-    u = url.lower()
-    return any(p in u for p in CATEGORY_URL_PATTERNS)
+def is_category_url(url):
+    url_lower = url.lower()
+    return any(pattern in url_lower for pattern in CATEGORY_URL_PATTERNS)
 
 
-def infer_industry(text: str) -> str:
-    t = text.lower()
+def infer_industry(text):
+    text = text.lower()
     for industry, kws in INDUSTRY_KEYWORDS.items():
-        if any(kw in t for kw in kws):
+        if any(kw in text for kw in kws):
             return industry
     return "General"
 
 
-def infer_category(url: str, text: str) -> str:
+def infer_category(url, text):
     combined = (url + " " + text).lower()
     for kw, cat in CATEGORY_MAP:
         if kw in combined:
@@ -172,22 +149,22 @@ def infer_category(url: str, text: str) -> str:
     return "Opportunity"
 
 
-def infer_range(text: str) -> str:
-    t = text.lower()
-    if any(kw in t for kw in INTL_KEYWORDS):
+def infer_range(text):
+    text = text.lower()
+    if any(kw in text for kw in RANGE_KEYWORDS_INTL):
         return "International"
     return "National"
 
 
-def infer_edu(text: str, industry: str) -> str:
-    t = text.lower()
+def infer_edu(text):
+    text = text.lower()
     for level, kws in EDU_KEYWORDS.items():
-        if any(kw in t for kw in kws):
+        if any(kw in text for kw in kws):
             return level
-    return "Any" if industry == "Startup" else "Bachelor"
+    return "Any"
 
 
-def extract_deadline(text: str) -> str:
+def extract_deadline(text):
     patterns = [
         r"deadline[:\s]+([A-Za-z]+ \d{1,2},?\s*\d{4})",
         r"apply by[:\s]+([A-Za-z]+ \d{1,2},?\s*\d{4})",
@@ -203,7 +180,8 @@ def extract_deadline(text: str) -> str:
     return ""
 
 
-def is_expired(deadline_str: str, title: str = "") -> bool:
+def is_expired(deadline_str, title=""):
+    """Return True if the opportunity is clearly in the past."""
     today = date.today()
     if title:
         for m in PAST_YEAR_RE.finditer(title):
@@ -218,375 +196,234 @@ def is_expired(deadline_str: str, title: str = "") -> bool:
         return False
 
 
-def is_nigeria_excluded(text: str) -> bool:
-    """Return True if the text explicitly excludes Nigeria / West Africa."""
-    t = text.lower()
-    return any(sig in t for sig in EXCLUSION_SIGNALS)
+def is_old_post(response):
+    """Return True if the page is clearly more than MAX_POST_AGE_DAYS old."""
+    today = date.today()
+    cutoff = today - timedelta(days=MAX_POST_AGE_DAYS)
+
+    # 1. Check <time datetime="..."> tag
+    pub_date_str = response.css(
+        "time[datetime]::attr(datetime), "
+        "meta[property='article:published_time']::attr(content)"
+    ).get("")
+    if pub_date_str and HAS_DATEUTIL:
+        try:
+            pub = dateutil_parse(pub_date_str, fuzzy=True).date()
+            if pub < cutoff:
+                return True
+        except Exception:
+            pass
+
+    # 2. Check URL date pattern — e.g. /2025/03/ or /2024/11/
+    url_date = re.search(r"/(\d{4})/(\d{2})/", response.url)
+    if url_date:
+        try:
+            y, m = int(url_date.group(1)), int(url_date.group(2))
+            if date(y, m, 1) < cutoff.replace(day=1):
+                return True
+        except Exception:
+            pass
+
+    return False
 
 
-def org_from_url(url: str) -> str:
+def extract_direct_apply_link(response):
+    """
+    Find the best direct application URL on the page.
+    Prefers links that go to a DIFFERENT domain from the blog/aggregator
+    (i.e., the actual company or program application page).
+    Falls back to any apply-looking link, then to the page URL itself.
+    """
+    blog_domain = urlparse(response.url).netloc
+
+    # Selectors ordered by specificity
+    candidates = response.css(
+        "a[href*='apply']::attr(href), "
+        "a[href*='application']::attr(href), "
+        "a[href*='admission']::attr(href), "
+        "a[href*='register']::attr(href), "
+        "a[href*='enroll']::attr(href), "
+        "a[href*='portal']::attr(href)"
+    ).getall()
+
+    # Filter to absolute HTTP URLs only
+    abs_candidates = [l for l in candidates if l and l.startswith("http")]
+
+    # Prefer external (non-blog) domain links — these are the actual org sites
+    external = [l for l in abs_candidates if urlparse(l).netloc != blog_domain]
+    if external:
+        return external[0]
+
+    # Fall back to any absolute apply link
+    if abs_candidates:
+        return abs_candidates[0]
+
+    # Last resort: the page URL itself
+    return response.url
+
+
+def org_from_url(url):
     try:
         host = urlparse(url).netloc.replace("www.", "")
-        return host.split(".")[0].title()
+        name = host.split(".")[0].title()
+        return name
     except Exception:
         return ""
 
 
-# ── Spider ───────────────────────────────────────────────────────────────────
-
 class OpportunitiesSpider(scrapy.Spider):
     name = "opportunities"
 
-    # ------------------------------------------------------------------
-    # DIRECT SOURCE URLS  —  SWE-List style
-    # Every URL is an official programme page, careers portal, or
-    # government scholarship body. No aggregators.
-    # ------------------------------------------------------------------
-    # Structure: (url, label, category_hint, org_name)
-    # category_hint and org_name allow us to set metadata without
-    # relying solely on keyword inference when the page text is sparse.
-    # ------------------------------------------------------------------
-
-    DIRECT_SOURCES = [
-
-        # ══════════════════════════════════════════════════════════════
-        # NIGERIA — NATIONAL SCHOLARSHIPS & GRANTS
-        # ══════════════════════════════════════════════════════════════
-        ("https://fsb.gov.ng/",
-            "Federal Scholarship Board Nigeria", "Scholarship", "Federal Scholarship Board"),
-        ("https://www.tetfund.gov.ng/index.php/scholarship",
-            "TETFund Scholarship", "Scholarship", "TETFund"),
-        ("https://nitda.gov.ng/",
-            "NITDA Digital Skills & Grants", "Grant", "NITDA"),
-        ("https://boi.ng/product/",
-            "Bank of Industry Funding", "Grant", "Bank of Industry"),
-        ("https://www.mtnfoundation.ng/programmes/scholarship/",
-            "MTN Foundation Scholarship", "Scholarship", "MTN Foundation"),
-        ("https://www.accessbankplc.com/CorporateSocialResponsibility/education",
-            "Access Bank Education Grant", "Grant", "Access Bank"),
-
-        # ══════════════════════════════════════════════════════════════
-        # PAN-AFRICAN SCHOLARSHIPS & FELLOWSHIPS
-        # (open to Nigerians; continent-wide eligibility)
-        # ══════════════════════════════════════════════════════════════
-        ("https://mastercardfdn.org/all-programs/scholars-program/",
-            "Mastercard Foundation Scholars Program", "Scholarship", "Mastercard Foundation"),
-        ("https://www.africanleadershipacademy.org/admissions/",
-            "African Leadership Academy Fellowship", "Fellowship", "ALA"),
-        ("https://alueducation.com/admissions/scholarships/",
-            "African Leadership University Scholarship", "Scholarship", "ALU"),
-        ("https://www.tonyelumelufoundation.org/teep",
-            "Tony Elumelu Entrepreneurship Programme", "Grant", "Tony Elumelu Foundation"),
-        ("https://www.zindabanifoundation.org/scholarships",
-            "Zindabani Foundation Scholarship", "Scholarship", "Zindabani Foundation"),
-        ("https://www.opensocietyfoundations.org/grants",
-            "Open Society Foundations Grants", "Grant", "Open Society Foundations"),
-        ("https://www.mo.ibrahim.foundation/fellowship",
-            "Mo Ibrahim Foundation Fellowship", "Fellowship", "Mo Ibrahim Foundation"),
-
-        # ══════════════════════════════════════════════════════════════
-        # INTERNATIONAL — EUROPE
-        # ══════════════════════════════════════════════════════════════
-        ("https://www.chevening.org/scholarships/",
-            "Chevening Scholarship (UK)", "Scholarship", "Chevening / FCDO"),
-        ("https://cscuk.fcdo.gov.uk/scholarships/",
-            "Commonwealth Scholarship (UK)", "Scholarship", "Commonwealth Scholarship Commission"),
-        ("https://www.gatescambridge.org/apply/",
-            "Gates Cambridge Scholarship", "Scholarship", "Gates Cambridge Trust"),
-        ("https://www.rhodeshouse.ox.ac.uk/scholarships/apply/",
-            "Rhodes Scholarship", "Scholarship", "Rhodes Trust"),
-        ("https://www.daad.de/en/study-and-research-in-germany/scholarships/",
-            "DAAD Scholarship (Germany)", "Scholarship", "DAAD"),
-        ("https://erasmus-plus.ec.europa.eu/opportunities",
-            "Erasmus+ Scholarships (EU)", "Scholarship", "European Commission"),
-        ("https://www.studyinholland.nl/scholarships",
-            "Netherlands Scholarships (Holland)", "Scholarship", "Nuffic / Holland"),
-        ("https://www.universitiesscotland.ac.uk/international/scholarships/",
-            "Scotland Scholarships", "Scholarship", "Universities Scotland"),
-        ("https://www.si.se/en/apply/scholarships/",
-            "Swedish Institute Scholarship", "Scholarship", "Swedish Institute"),
-        ("https://www.norad.no/en/front/funding/scholarships/",
-            "Norwegian Government Scholarship", "Scholarship", "Norad Norway"),
-        ("https://www.science-without-borders.com/",
-            "Brazil Scientific Mobility Program", "Scholarship", "Science Without Borders"),
-
-        # ══════════════════════════════════════════════════════════════
-        # INTERNATIONAL — NORTH AMERICA (USA / CANADA)
-        # ══════════════════════════════════════════════════════════════
-        ("https://ng.usembassy.gov/education-culture/fulbright-program/",
-            "Fulbright Scholarship (Nigeria)", "Scholarship", "US Embassy Abuja"),
-        ("https://www.humphreyfellowship.org/application",
-            "Hubert H. Humphrey Fellowship (USA)", "Fellowship", "Humphrey Fellows"),
-        ("https://yalinetwork.state.gov/",
-            "YALI Mandela Washington Fellowship", "Fellowship", "YALI / US Dept of State"),
-        ("https://www.aauw.org/resources/programs/fellowships-grants/",
-            "AAUW Fellowship (USA — Women)", "Fellowship", "AAUW"),
-        ("https://www.idrc.ca/en/funding",
-            "IDRC Research Grants (Canada)", "Grant", "IDRC Canada"),
-        ("https://scholarships.gc.ca/schol-bours/home-accueil.aspx?lang=eng",
-            "Vanier Canada Graduate Scholarship", "Scholarship", "Government of Canada"),
-
-        # ══════════════════════════════════════════════════════════════
-        # INTERNATIONAL — ASIA
-        # ══════════════════════════════════════════════════════════════
-        ("https://www.campuschina.org/scholarships/index.html",
-            "Chinese Government Scholarship (CSC)", "Scholarship", "Chinese Ministry of Education"),
-        ("https://www.studyinjapan.go.jp/en/smap_ugrad-e/",
-            "MEXT Scholarship Japan", "Scholarship", "Japanese MEXT"),
-        ("https://www.studyinkorea.go.kr/en/scholarships/GKS_Scholarship.do",
-            "Korean Government Scholarship (KGSP)", "Scholarship", "Korean NIIED"),
-        ("https://www.iccr.gov.in/scholarships",
-            "Indian ICCR Scholarship", "Scholarship", "ICCR India"),
-        ("https://www.adb.org/work-with-us/careers/japan-scholarship-program",
-            "ADB Japan Scholarship Program", "Scholarship", "Asian Development Bank"),
-        ("https://www.nus.edu.sg/oam/scholarships/scholarships-for-international-students",
-            "NUS Singapore International Scholarships", "Scholarship", "NUS Singapore"),
-        ("https://www.ntu.edu.sg/admissions/global/international-scholarships",
-            "NTU Singapore International Scholarships", "Scholarship", "NTU Singapore"),
-        ("https://www.tw.org/moststudy/",
-            "Taiwan MOE Scholarship", "Scholarship", "Taiwan Ministry of Education"),
-
-        # ══════════════════════════════════════════════════════════════
-        # INTERNATIONAL — SOUTH AMERICA
-        # ══════════════════════════════════════════════════════════════
-        ("https://www.cnpq.br/web/guest/chamadas-publicas",
-            "CNPq Research Grants (Brazil)", "Grant", "CNPq Brazil"),
-        ("https://www.oea.org/en/scholarships",
-            "OAS Scholarships (Latin America)", "Scholarship", "Organization of American States"),
-        ("https://www.fundayacucho.gob.ve/becas/",
-            "Fundayacucho Scholarship (Venezuela)", "Scholarship", "Fundayacucho"),
-
-        # ══════════════════════════════════════════════════════════════
-        # TECH INTERNSHIPS — GLOBAL COMPANIES (open to Nigerians)
-        # ══════════════════════════════════════════════════════════════
-        ("https://buildyourfuture.withgoogle.com/programs/step",
-            "Google STEP Internship", "Internship", "Google"),
-        ("https://summerofcode.withgoogle.com/",
-            "Google Summer of Code", "Internship", "Google"),
-        ("https://careers.microsoft.com/us/en/ur-lp-msinternships",
-            "Microsoft Internship Program", "Internship", "Microsoft"),
-        ("https://www.metacareers.com/careerprograms/pathways/metauniversity",
-            "Meta University Internship", "Internship", "Meta"),
-        ("https://www.amazon.jobs/en/landing_pages/software-development-student-programs",
-            "Amazon Student Programs (SDE)", "Internship", "Amazon"),
-        ("https://fellowship.mlh.io/",
-            "MLH Fellowship (Open Source)", "Fellowship", "MLH"),
-        ("https://outreachy.org/",
-            "Outreachy Internship (Open Source)", "Internship", "Outreachy"),
-        ("https://www.gsoc-africa.dev/",
-            "GSoC Africa Initiative", "Internship", "GSoC Africa"),
-        ("https://andela.com/ats/",
-            "Andela Tech Fellows Program", "Fellowship", "Andela"),
-        ("https://www.awsrestart.com/",
-            "AWS re/Start (Cloud Training)", "Bootcamp", "Amazon Web Services"),
-        ("https://grow.google/programs/",
-            "Google Career Certificates & Programs", "Bootcamp", "Google"),
-        ("https://www.futurelearn.com/programs/digital-skills-africa",
-            "FutureLearn Digital Skills for Africa", "Bootcamp", "FutureLearn"),
-
-        # ══════════════════════════════════════════════════════════════
-        # STARTUP FUNDING — GLOBAL ACCELERATORS & VC PROGRAMS
-        # ══════════════════════════════════════════════════════════════
-        ("https://www.ycombinator.com/apply/",
-            "Y Combinator (Global)", "Accelerator", "Y Combinator"),
-        ("https://www.techstars.com/accelerators",
-            "Techstars Accelerators (Global)", "Accelerator", "Techstars"),
-        ("https://startup.google.com/programs/accelerator/africa/",
-            "Google for Startups Accelerator Africa", "Accelerator", "Google"),
-        ("https://developers.facebook.com/startups/",
-            "Meta Startup Hub", "Accelerator", "Meta"),
-        ("https://www.microsoftforstartups.com/",
-            "Microsoft for Startups Founders Hub", "Accelerator", "Microsoft"),
-        ("https://www.500.co/accelerators",
-            "500 Global Accelerator", "Accelerator", "500 Global"),
-        ("https://www.seedstars.com/programs/",
-            "Seedstars Africa Programs", "Accelerator", "Seedstars"),
-        ("https://villageapital.com/programs/",
-            "Village Capital Programs", "Accelerator", "Village Capital"),
-        ("https://www.startupgrind.com/accelerate/",
-            "Startup Grind Accelerate", "Accelerator", "Startup Grind"),
-        ("https://www.tef.africa/",
-            "Tony Elumelu Foundation Entrepreneurship", "Grant", "TEF"),
-        ("https://www.norrsken.org/africa-accelerator",
-            "Norrsken Africa Accelerator", "Accelerator", "Norrsken Foundation"),
-        ("https://www.vc4a.com/programs/",
-            "VC4A Venture Finance Africa", "VC Funding", "VC4A"),
-
-        # ══════════════════════════════════════════════════════════════
-        # RESEARCH FELLOWSHIPS — GLOBAL
-        # ══════════════════════════════════════════════════════════════
-        ("https://www.africanacademyofsciences.org/funding-opportunities/",
-            "AAS Research Grants", "Grant", "African Academy of Sciences"),
-        ("https://www.wellcome.org/grant-funding",
-            "Wellcome Trust Grant Funding", "Grant", "Wellcome Trust"),
-        ("https://www.gatesfoundation.org/about/how-we-work/general-information/grant-opportunities",
-            "Bill & Melinda Gates Foundation Grants", "Grant", "Gates Foundation"),
-        ("https://www.hewlett.org/grants/",
-            "Hewlett Foundation Grants", "Grant", "Hewlett Foundation"),
-        ("https://www.worldbank.org/en/programs/scholarships",
-            "World Bank Scholarships Program", "Scholarship", "World Bank"),
-        ("https://www.undp.org/funding/calls-for-proposals",
-            "UNDP Calls for Proposals", "Grant", "UNDP"),
-        ("https://www.un.org/en/academic-impact/page/scholarships",
-            "UN Academic Impact Scholarships", "Scholarship", "United Nations"),
-
-        # ══════════════════════════════════════════════════════════════
-        # LAW & POLICY FELLOWSHIPS
-        # ══════════════════════════════════════════════════════════════
-        ("https://www.law.columbia.edu/admissions/graduate-legal-studies/llm-funding",
-            "Columbia LLM Funding (USA)", "Fellowship", "Columbia Law School"),
-        ("https://www.law.ox.ac.uk/admissions/graduate/scholarships",
-            "Oxford Law Scholarships (UK)", "Scholarship", "Oxford University"),
-        ("https://www.amnesty.org/en/get-involved/internships/",
-            "Amnesty International Internship", "Internship", "Amnesty International"),
-        ("https://africanlegalaid.net/opportunities/",
-            "African Legal Aid Opportunities", "Fellowship", "African Legal Aid"),
-
-        # ══════════════════════════════════════════════════════════════
-        # MEDICINE & HEALTH FELLOWSHIPS
-        # ══════════════════════════════════════════════════════════════
-        ("https://www.who.int/about/funding/contributor",
-            "WHO Fellowship Programs", "Fellowship", "World Health Organization"),
-        ("https://www.nih.gov/grants-funding",
-            "NIH Research Grants (USA)", "Grant", "NIH"),
-        ("https://africacdc.org/opportunities/",
-            "Africa CDC Opportunities", "Fellowship", "Africa CDC"),
-        ("https://www.gheli.org/fellowships",
-            "GHELI Global Health Fellowship", "Fellowship", "GHELI"),
-
-        # ══════════════════════════════════════════════════════════════
-        # WOMEN & UNDERREPRESENTED GROUPS
-        # ══════════════════════════════════════════════════════════════
-        ("https://www.anitab.org/award-programs/",
-            "AnitaB.org Awards & Programs", "Award", "AnitaB.org"),
-        ("https://womentechmakers.com/scholars",
-            "Google Women Techmakers Scholars", "Scholarship", "Google"),
-        ("https://www.globalfundforwomen.org/apply-for-a-grant/",
-            "Global Fund for Women Grant", "Grant", "Global Fund for Women"),
-        ("https://www.amujere.com/",
-            "Amujere Women in Tech Scholarship", "Scholarship", "Amujere"),
+    # Student-focused listing pages only — startup/funding URLs removed
+    start_urls = [
+        # ── International aggregators ──────────────────────────────────────
+        "https://www.scholars4dev.com/category/scholarships-for-africans/",
+        "https://www.opportunitiesforafricans.com/category/scholarships/",
+        "https://www.opportunitiesforafricans.com/category/fellowships/",
+        "https://www.opportunitiesforafricans.com/category/internships/",
+        "https://afterschoolafrica.com/scholarships/",
+        "https://afterschoolafrica.com/fellowships/",
+        "https://afterschoolafrica.com/internships/",
+        "https://opportunitydesk.org/category/scholarships/",
+        "https://opportunitydesk.org/category/fellowships/",
+        "https://opportunitydesk.org/category/internships/",
+        # ── Nigerian portals ───────────────────────────────────────────────
+        "https://scholarshipregion.com/category/nigeria-scholarships/",
+        "https://myschoolng.com/scholarships/",
+        # ── Youth Hub Africa ───────────────────────────────────────────────
+        "https://opportunities.youthhubafrica.org/category/scholarships-opportunities/",
+        "https://opportunities.youthhubafrica.org/category/fellowships/",
+        "https://opportunities.youthhubafrica.org/category/internships/",
+        # ── Asia-specific (open to Africans) ──────────────────────────────
+        "https://www.scholars4dev.com/category/scholarships-in-asia/",
+        "https://www.scholars4dev.com/category/scholarships-in-china/",
+        "https://www.scholars4dev.com/category/scholarships-in-japan/",
+        "https://www.scholars4dev.com/category/scholarships-in-south-korea/",
+        "https://www.scholars4dev.com/category/scholarships-in-india/",
+        "https://opportunitydesk.org/?s=china+scholarship+africa",
+        "https://opportunitydesk.org/?s=japan+scholarship+africa",
+        "https://opportunitydesk.org/?s=korea+scholarship+africa",
+        "https://opportunitydesk.org/?s=asian+scholarship",
+        "https://www.opportunitiesforafricans.com/?s=china",
+        "https://www.opportunitiesforafricans.com/?s=japan",
+        "https://www.opportunitiesforafricans.com/?s=korea",
+        "https://www.opportunitiesforafricans.com/?s=india",
+        "https://afterschoolafrica.com/?s=china+scholarship",
+        "https://afterschoolafrica.com/?s=japan+scholarship",
+        "https://afterschoolafrica.com/?s=korea+scholarship",
+        "https://opportunitydesk.org/?s=asian+development+bank",
+        "https://opportunities.youthhubafrica.org/?s=china",
+        "https://opportunities.youthhubafrica.org/?s=japan",
+        "https://opportunities.youthhubafrica.org/?s=korea",
     ]
 
-    MAX_PAGES = 2
-
-    # ------------------------------------------------------------------
-    # Request generation
-    # ------------------------------------------------------------------
+    MAX_PAGES = 2  # Reduced from 3 to keep results recent
 
     def start_requests(self):
-        for url, label, category_hint, org_name in self.DIRECT_SOURCES:
+        for url in self.start_urls:
+            yield scrapy.Request(url, callback=self.parse)
+
+        for sub in REDDIT_SUBREDDITS:
+            url = f"https://www.reddit.com/r/{sub}/new/.rss?limit=25"
             yield scrapy.Request(
                 url,
-                callback=self.parse_opportunity,
-                meta={
-                    "label": label,
-                    "category_hint": category_hint,
-                    "org_name": org_name,
-                    "source_url": url,
+                callback=self.parse_reddit_rss,
+                headers={
+                    "Accept": "application/rss+xml, application/xml, text/xml",
+                    "User-Agent": "python:scoutbot.opportunities-aggregator:v1.0 (by /u/scoutbot_ng)",
                 },
-                errback=self.handle_error,
+                meta={"subreddit": sub},
             )
 
-    def handle_error(self, failure):
-        self.logger.warning(f"Request failed: {failure.request.url} — {failure.value}")
+    def parse(self, response):
+        """Parse a listing page and follow links to individual opportunity pages."""
+        article_links = response.css(
+            "article h2.entry-title a::attr(href), "
+            "article h3.entry-title a::attr(href), "
+            ".entry-title a::attr(href), "
+            "h2.post-title a::attr(href), "
+            "h2.title a::attr(href), "
+            ".post-title a::attr(href), "
+            "article h2 a::attr(href), "
+            "article h3 a::attr(href)"
+        ).getall()
 
-    # ------------------------------------------------------------------
-    # Parse an opportunity / programme page
-    # ------------------------------------------------------------------
+        for link in article_links:
+            link = link.strip()
+            if not link or not link.startswith("http") or is_category_url(link):
+                continue
+            # Pre-filter: skip if the URL contains a past year
+            ym = PAST_YEAR_RE.search(link)
+            if ym and int(ym.group(1)) < date.today().year:
+                continue
+            yield response.follow(link, self.parse_opportunity)
+
+        # Pagination — not for search URLs, and capped at MAX_PAGES
+        if "?s=" not in response.url:
+            current_page = int(response.meta.get("page", 1))
+            if current_page < self.MAX_PAGES:
+                next_page = response.css(
+                    "a.next.page-numbers::attr(href), "
+                    "a[rel='next']::attr(href), "
+                    "a.next::attr(href)"
+                ).get()
+                if next_page:
+                    yield response.follow(
+                        next_page, self.parse,
+                        meta={"page": current_page + 1},
+                    )
 
     def parse_opportunity(self, response):
-        meta          = response.meta
-        label         = meta.get("label", "")
-        category_hint = meta.get("category_hint", "")
-        org_name      = meta.get("org_name", "") or org_from_url(response.url)
-        source_url    = meta.get("source_url", response.url)
+        """Parse an individual opportunity page."""
 
-        # ── Title ──────────────────────────────────────────────────────
+        # Skip old pages immediately
+        if is_old_post(response):
+            return
+
         title = (
-            response.css(
-                "h1.entry-title::text, h1.post-title::text, "
-                "h1.page-title::text, h1::text"
-            ).get("").strip()
+            response.css("h1.entry-title::text, h1.post-title::text, h1::text").get("").strip()
             or response.css("title::text").get("").strip()
-            or label  # fall back to our own label if page title is empty
         )
-
         if not title:
             return
 
-        # ── Body text (for inference + deadline extraction) ────────────
-        full_text = " ".join(
-            response.css(
-                "article p::text, .entry-content p::text, "
-                ".post-content p::text, main p::text, "
-                "section p::text, .content p::text"
-            ).getall()
-        )
+        # Drop past-year titles
+        ym = PAST_YEAR_RE.search(title)
+        if ym and int(ym.group(1)) < date.today().year:
+            return
 
-        combined = title + " " + full_text + " " + label
+        full_text = " ".join(response.css(
+            "article p::text, .entry-content p::text, .post-content p::text"
+        ).getall())
+        combined = title + " " + full_text
 
-        # ── Staleness check ────────────────────────────────────────────
         deadline_str = extract_deadline(combined)
         if is_expired(deadline_str, title):
-            self.logger.debug(f"Dropped (expired): {title}")
             return
 
-        year_in_title = PAST_YEAR_RE.search(title)
-        if year_in_title and int(year_in_title.group(1)) < date.today().year:
+        # Infer category and drop startup/funding content
+        category = infer_category(response.url, combined)
+        if category in EXCLUDED_CATEGORIES:
             return
 
-        # ── Nigeria / exclusion filter ─────────────────────────────────
-        if is_nigeria_excluded(combined):
-            self.logger.debug(f"Dropped (Nigeria excluded): {title}")
-            return
+        # ── KEY FIX: use the direct apply URL, not the blog post URL ──────
+        apply_link = extract_direct_apply_link(response)
 
-        # ── Infer metadata ─────────────────────────────────────────────
-        industry = infer_industry(combined)
-
-        # Use category_hint from DIRECT_SOURCES metadata first; fall back to inference
-        category = category_hint or infer_category(response.url, combined)
-
-        # Build a clean one-line summary (SWE-List style: no paragraph blobs)
-        # Use the meta description if available; otherwise take the first sentence.
-        meta_desc = response.css(
-            "meta[name='description']::attr(content), "
-            "meta[property='og:description']::attr(content)"
-        ).get("").strip()
-
-        if meta_desc:
-            summary = meta_desc[:200].rstrip(".")
-        elif full_text:
-            first_sentence = re.split(r"(?<=[.!?])\s", full_text.strip())[0]
-            summary = first_sentence[:200].rstrip(".")
-        else:
-            summary = label  # absolute fallback
-
-        # ── Apply link ─────────────────────────────────────────────────
-        # Prefer explicit apply / application / register links on the page.
-        # Fall back to the source URL from DIRECT_SOURCES.
-        apply_link = (
-            response.css(
-                "a[href*='apply']::attr(href), "
-                "a[href*='application']::attr(href), "
-                "a[href*='register']::attr(href), "
-                "a[href*='apply-now']::attr(href)"
-            ).get("")
-            or source_url
+        org = (
+            response.css("meta[property='og:site_name']::attr(content)").get("")
+            or org_from_url(response.url)
         )
 
-        # Make relative URLs absolute
-        if apply_link and not apply_link.startswith("http"):
-            apply_link = response.urljoin(apply_link)
+        industry = infer_industry(combined)
 
-        # ── Assemble item ──────────────────────────────────────────────
         item = OpportunityItem()
         item["title"]            = title
         item["industry"]         = industry
         item["category"]         = category
-        item["range"]            = infer_range(combined + " " + label)
-        item["education_level"]  = infer_edu(combined, industry)
-        item["organization"]     = org_name
-        item["summary"]          = summary
+        item["range"]            = infer_range(combined)
+        item["education_level"]  = infer_edu(combined)
+        item["organization"]     = org
+        item["summary"]          = full_text[:400].strip()
         item["application_link"] = apply_link
         item["opening_date"]     = ""
         item["deadline"]         = deadline_str
@@ -594,17 +431,83 @@ class OpportunitiesSpider(scrapy.Spider):
 
         yield item
 
-        # ── Follow paginated listing pages (max 2 pages) ───────────────
-        current_page = int(response.meta.get("page", 1))
-        if current_page < self.MAX_PAGES:
-            next_page = response.css(
-                "a.next.page-numbers::attr(href), "
-                "a[rel='next']::attr(href), "
-                "a.next::attr(href)"
-            ).get()
-            if next_page and not is_category_url(next_page):
-                yield response.follow(
-                    next_page,
-                    self.parse_opportunity,
-                    meta={**meta, "page": current_page + 1},
-                )
+    def parse_reddit_rss(self, response):
+        """Parse Reddit's public Atom RSS feed for a subreddit."""
+        import xml.etree.ElementTree as ET
+
+        sub = response.meta.get("subreddit", "reddit")
+        try:
+            root = ET.fromstring(response.text)
+        except Exception as exc:
+            self.logger.warning(f"Reddit r/{sub}: RSS parse failed — {exc}")
+            return
+
+        ns = {"atom": "http://www.w3.org/2005/Atom"}
+        entries = root.findall("atom:entry", ns)
+        now_ts = datetime.now(tz=timezone.utc).timestamp()
+        cutoff_ts = now_ts - (MAX_POST_AGE_DAYS * 86400)
+        kept = 0
+
+        for entry in entries:
+            t_el = entry.find("atom:title", ns)
+            title = (t_el.text or "").strip() if t_el is not None else ""
+            if not title:
+                continue
+
+            ym = PAST_YEAR_RE.search(title)
+            if ym and int(ym.group(1)) < date.today().year:
+                continue
+
+            link_el = entry.find("atom:link", ns)
+            post_url = link_el.get("href", "") if link_el is not None else ""
+
+            upd_el = entry.find("atom:updated", ns)
+            if upd_el is not None and upd_el.text:
+                try:
+                    ts = datetime.fromisoformat(
+                        upd_el.text.replace("Z", "+00:00")
+                    ).timestamp()
+                    if ts < cutoff_ts:
+                        continue
+                except Exception:
+                    pass
+
+            c_el = entry.find("atom:content", ns)
+            raw = c_el.text or "" if c_el is not None else ""
+            body = re.sub(r"<[^>]+>", " ", raw)
+            body = re.sub(r"\s+", " ", body).strip()
+            if body in ("[removed]", "[deleted]"):
+                body = ""
+
+            combined = (title + " " + body).lower()
+            if not any(kw in combined for kw in REDDIT_OPPORTUNITY_KEYWORDS):
+                continue
+
+            deadline_str = extract_deadline(title + " " + body)
+            if is_expired(deadline_str, title):
+                continue
+
+            category = infer_category(post_url, combined)
+            if category in EXCLUDED_CATEGORIES:
+                continue
+
+            apply_link = post_url or f"https://www.reddit.com/r/{sub}/"
+            industry = infer_industry(combined)
+
+            item = OpportunityItem()
+            item["title"]            = title
+            item["industry"]         = industry
+            item["category"]         = category
+            item["range"]            = infer_range(combined)
+            item["education_level"]  = infer_edu(combined)
+            item["organization"]     = f"Reddit r/{sub}"
+            item["summary"]          = body[:400].strip() or title
+            item["application_link"] = apply_link
+            item["opening_date"]     = ""
+            item["deadline"]         = deadline_str
+            item["status"]           = "Open"
+
+            kept += 1
+            yield item
+
+        self.logger.info(f"Reddit r/{sub}: {kept} kept from {len(entries)} entries.")
