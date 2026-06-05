@@ -1,8 +1,10 @@
 name: ScoutBot — Weekly Sunday Digest
 
-# Sends the weekly opportunity digest to all subscribers every Sunday
-# at 10:00 WAT (09:00 UTC).
-# Only opportunities added in the last 7 days are included.
+# Every Sunday at 10:00 WAT (09:00 UTC):
+#   1. Sends the apology/update announcement (so latecomers who missed it get it)
+#   2. Sends the weekly opportunity digest (last 7 days only)
+#
+# The announcement email is idempotent in tone — receiving it twice is fine.
 # Can also be triggered manually from the GitHub Actions tab.
 
 on:
@@ -13,8 +15,8 @@ on:
 jobs:
   digest:
     runs-on: ubuntu-latest
-    # 518 subscribers ÷ 30 per batch = 18 batches × 6-min pause ≈ 110 min
-    timeout-minutes: 120
+    # 518 subscribers ÷ 30 per batch × 6-min pause × 2 emails = ~220 min
+    timeout-minutes: 240
 
     steps:
       - name: Check out code
@@ -44,7 +46,10 @@ jobs:
           RECIPIENT_EMAILS=${{ secrets.RECIPIENT_EMAILS }}
           EOF
 
-      - name: Send weekly digest email
+      - name: Send announcement / update email (catches any who missed it mid-week)
+        run: python announce.py
+
+      - name: Send weekly opportunity digest
         run: python run.py --notify
 
       - name: Upload logs
