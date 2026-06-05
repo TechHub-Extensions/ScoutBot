@@ -165,13 +165,25 @@ def infer_edu(text):
 
 
 def extract_deadline(text):
+    if re.search(r"\brolling admissions?\b|\bapplications reviewed monthly\b", text, re.IGNORECASE):
+        return "Rolling"
+
+    month_expr = (
+        r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|"
+        r"jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|"
+        r"nov(?:ember)?|dec(?:ember)?)"
+    )
+    date_patterns = [
+        r"\d{1,2}/\d{1,2}/\d{4}",
+        rf"\d{{1,2}}(?:st|nd|rd|th)?\s+{month_expr}\s+\d{{4}}",
+        rf"{month_expr}\s+\d{{1,2}},?\s*\d{{4}}",
+        rf"{month_expr}\s+\d{{1,2}}",
+    ]
+    date_expr = "|".join(f"(?:{pattern})" for pattern in date_patterns)
     patterns = [
-        r"deadline[:\s]+([A-Za-z]+ \d{1,2},?\s*\d{4})",
-        r"apply by[:\s]+([A-Za-z]+ \d{1,2},?\s*\d{4})",
-        r"closes?[:\s]+([A-Za-z]+ \d{1,2},?\s*\d{4})",
-        r"closing date[:\s]+([A-Za-z]+ \d{1,2},?\s*\d{4})",
-        r"(\d{1,2} [A-Za-z]+ \d{4})",
-        r"([A-Za-z]+ \d{1,2},?\s*\d{4})",
+        rf"(?:applications?\s+close(?:s)?\s+on|submissions?\s+accepted\s+until|accepted\s+until)\s+({date_expr})",
+        rf"(?:deadline|apply by|closes?|closing date)[:\s]+({date_expr})",
+        rf"({date_expr})",
     ]
     for p in patterns:
         m = re.search(p, text, re.IGNORECASE)
