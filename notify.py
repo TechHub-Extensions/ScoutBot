@@ -259,7 +259,7 @@ def _opp_list_items(opps):
         color    = CATEGORY_COLORS.get(cat, "#555")
         badge    = (
             f'<span style="display:inline-block;background:{color};color:#fff;'
-            f'padding:1px 7px;border-radius:3px;font-size:11px;'
+            f'padding:2px 8px;border-radius:3px;font-size:12px;'
             f'font-weight:600;margin-right:4px;">{cat}</span>'
         )
         dl_html  = (
@@ -268,14 +268,15 @@ def _opp_list_items(opps):
         )
         ind_html = f'&nbsp;·&nbsp;{industry}' if industry and industry != "General" else ""
         html += f"""
-        <li style="padding:10px 0;border-bottom:1px solid #f0f0f0;list-style:none;">
-          <a href="{link}" target="_blank"
-             style="color:#1a1a2e;font-weight:600;font-size:14px;text-decoration:none;">
+        <li class="opportunity-item"
+            style="padding:12px 0;border-bottom:1px solid #f0f0f0;list-style:none;">
+          <a class="opportunity-title" href="{link}" target="_blank"
+             style="color:#1a1a2e;font-weight:600;font-size:15px;line-height:1.45;text-decoration:none;">
             {title}</a>
-          &nbsp;<a href="{link}" target="_blank"
-                   style="color:#27ae60;font-size:12px;text-decoration:none;font-weight:600;">
+          <a class="apply-link" href="{link}" target="_blank"
+                   style="color:#27ae60;font-size:14px;line-height:44px;text-decoration:none;font-weight:700;margin-left:6px;white-space:nowrap;">
             Apply&nbsp;→</a><br>
-          <span style="font-size:12px;color:#777;">{badge}{ind_html}{dl_html}</span>
+          <span style="font-size:13px;line-height:1.5;color:#777;">{badge}{ind_html}{dl_html}</span>
         </li>"""
     return html
 
@@ -309,16 +310,47 @@ def build_html(nigeria_opps, intl_opps):
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    @media only screen and (max-width: 480px) {{
+      body {{
+        padding: 18px 12px !important;
+      }}
+      .email-shell {{
+        width: 100% !important;
+      }}
+      .digest-title {{
+        font-size: 22px !important;
+        line-height: 1.25 !important;
+      }}
+      .intro-copy,
+      .opportunity-title {{
+        font-size: 15px !important;
+      }}
+      .apply-link {{
+        display: inline-block !important;
+        min-height: 44px !important;
+        line-height: 44px !important;
+        padding: 0 2px !important;
+      }}
+      .footer-links a {{
+        display: inline-block !important;
+        min-height: 44px !important;
+        line-height: 44px !important;
+        margin-right: 12px !important;
+      }}
+    }}
+  </style>
 </head>
 <body style="font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;max-width:620px;
              margin:auto;padding:24px 16px;background:#fff;">
 
+  <div class="email-shell" style="width:100%;max-width:620px;margin:0 auto;">
   <div style="border-bottom:3px solid #1a1a2e;padding-bottom:12px;margin-bottom:18px;">
-    <h2 style="margin:0;color:#1a1a2e;font-size:20px;">ScoutBot — Weekly Digest</h2>
+    <h2 class="digest-title" style="margin:0;color:#1a1a2e;font-size:20px;line-height:1.3;">ScoutBot — Weekly Digest</h2>
     <p style="margin:4px 0 0;color:#777;font-size:13px;">{span_str} &nbsp;·&nbsp; {total} fresh opportunities</p>
   </div>
 
-  <p style="font-size:15px;line-height:1.6;">
+  <p class="intro-copy" style="font-size:15px;line-height:1.6;">
     Hey! Here are this week's student opportunities — <strong>only listings added in the last 7 days</strong>.
     Click <strong>Apply →</strong> to go straight to the application page.
   </p>
@@ -332,13 +364,14 @@ def build_html(nigeria_opps, intl_opps):
     <a href="{FUNDRAISING_DOC}" style="color:#888;">Support ScoutBot</a>
   </div>
 
-  <div style="margin-top:10px;padding:10px 0;font-size:12px;color:#bbb;">
+  <div class="footer-links" style="margin-top:10px;padding:10px 0;font-size:12px;line-height:1.5;color:#bbb;">
     <a href="{_UNSUB_MAILTO}" style="color:#c0392b;">Unsubscribe</a>
     &nbsp;&nbsp;|&nbsp;&nbsp;
     <a href="{_GMAIL_SEARCH}" style="color:#aaa;">🗑 Delete all ScoutBot emails in Gmail</a>
     &nbsp;&nbsp;|&nbsp;&nbsp;
     <a href="{GITHUB_URL}" style="color:#aaa;">GitHub</a>
     <br><span style="font-size:11px;">ScoutBot is open source &amp; student-built. Always verify opportunities at source.</span>
+  </div>
   </div>
 
 </body>
