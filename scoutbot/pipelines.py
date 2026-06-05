@@ -1,13 +1,16 @@
 """
 Scrapy pipelines:
   1. DedupePipeline  — drops duplicates (same link seen in this run)
-  2. SheetsPipeline  — writes new items to Google Sheets, skips already-present links
-  3. WhatsAppInterceptorPipeline — silently queues items for the ScoutBot distribution bridge
+  2. SheetsPipeline  — writes to separate tabs:
+       "Nigeria"       ← range == "National"
+       "International" ← range == "International"
+     Skips links already present in either tab.
+     Adds "Date Added" column (today's date) to every new row.
 """
 
 import os
 import logging
-import sqlite3  # <-- Added for the WhatsApp bridge
+from datetime import date
 from dotenv import load_dotenv
 from scrapy.exceptions import DropItem
 
@@ -30,9 +33,33 @@ SHEET_HEADERS = [
     "Opening Date",
     "Deadline",
     "Status",
+    "Date Added",
 ]
 
-LINK_COL_INDEX = 7  # 0-based index of "Application Link" in SHEET_HEADERS
+LINK_COL_INDEX = 7   # 0-based index of "Application Link"
+TAB_NIGERIA       = "Nigeria"
+TAB_INTERNATIONAL = "International"
+
+
+def _resolve_json_path():
+    p = SERVICE_ACCOUNT_JSON
+    if not os.path.isabs(p):
+        p = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            p,
+        )
+    return p
+
+
+def _get_or_create_tab(spreadsheet, name):
+    """Return the named worksheet, creating it with headers if it doesn't exist."""
+    try:
+        ws = spreadsheet.worksheet(name)
+    except Exception:
+        ws = spreadsheet.add_worksheet(title=name, rows=2000, cols=len(SHEET_HEADERS))
+        ws.append_row(SHEET_HEADERS)
+        logger.info(f"SheetsPipeline: Created new tab '{name}'.")
+    return ws
 
 
 class DedupePipeline:
@@ -54,12 +81,14 @@ class DedupePipeline:
 
 
 class SheetsPipeline:
-    """Appends new opportunities to Google Sheets, skipping already-present links."""
+    """Routes opportunities to the Nigeria or International tab."""
 
     def __init__(self):
-        self.sheet = None
-        self.existing_links = set()
-        self.new_rows = []
+        self.nigeria_ws       = None
+        self.international_ws = None
+        self.existing_links   = set()
+        self.nigeria_rows     = []
+        self.intl_rows        = []
 
     @classmethod
     def from_crawler(cls, crawler):
@@ -70,124 +99,77 @@ class SheetsPipeline:
             import gspread
             from google.oauth2.service_account import Credentials
 
-            scopes = [
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive",
-            ]
-
-            json_path = SERVICE_ACCOUNT_JSON
-            if not os.path.isabs(json_path):
-                json_path = os.path.join(
-                    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                    json_path,
-                )
-
-            creds = Credentials.from_service_account_file(json_path, scopes=scopes)
+            creds = Credentials.from_service_account_file(
+                _resolve_json_path(),
+                scopes=[
+                    "https://www.googleapis.com/auth/spreadsheets",
+                    "https://www.googleapis.com/auth/drive",
+                ],
+            )
             client = gspread.authorize(creds)
-            self.sheet = client.open_by_key(SPREADSHEET_ID).sheet1
+            ss = client.open_by_key(SPREADSHEET_ID)
 
-            all_values = self.sheet.get_all_values()
-            if not all_values:
-                self.sheet.append_row(SHEET_HEADERS)
-                logger.info("SheetsPipeline: Header row added.")
-            else:
-                for row in all_values[1:]:
+            self.nigeria_ws       = _get_or_create_tab(ss, TAB_NIGERIA)
+            self.international_ws = _get_or_create_tab(ss, TAB_INTERNATIONAL)
+
+            # Load existing links from BOTH tabs to prevent cross-tab duplicates
+            for ws in (self.nigeria_ws, self.international_ws):
+                rows = ws.get_all_values()
+                for row in rows[1:]:
                     if len(row) > LINK_COL_INDEX and row[LINK_COL_INDEX].strip():
                         self.existing_links.add(row[LINK_COL_INDEX].strip())
 
-            logger.info(f"SheetsPipeline: {len(self.existing_links)} existing entries loaded.")
-
+            logger.info(
+                f"SheetsPipeline: {len(self.existing_links)} existing entries "
+                f"loaded from Nigeria + International tabs."
+            )
         except Exception as exc:
-            logger.error(f"SheetsPipeline: Failed to connect to Google Sheets — {exc}")
-            self.sheet = None
+            logger.error(f"SheetsPipeline: Failed to connect — {exc}")
 
     def process_item(self, item, spider=None):
-        if self.sheet is None:
-            return item
-
         link = (item.get("application_link") or "").strip()
         if link in self.existing_links:
             raise DropItem(f"Already in sheet: {link}")
 
+        today = date.today().isoformat()
         row = [
             (item.get("title") or "").strip(),
             (item.get("industry") or "General").strip(),
             (item.get("category") or "Opportunity").strip(),
             (item.get("range") or "").strip(),
-            (item.get("education_level") or "Bachelor").strip(),
+            (item.get("education_level") or "Any").strip(),
             (item.get("organization") or "").strip(),
             (item.get("summary") or "")[:400].strip(),
             link,
             (item.get("opening_date") or "").strip(),
             (item.get("deadline") or "").strip(),
             (item.get("status") or "Open").strip(),
+            today,
         ]
-        self.new_rows.append(row)
+
+        opp_range = (item.get("range") or "").strip()
+        if opp_range == "International":
+            self.intl_rows.append(row)
+        else:
+            self.nigeria_rows.append(row)
+
         self.existing_links.add(link)
         return item
 
     def close_spider(self, spider=None):
-        if not self.new_rows or self.sheet is None:
-            logger.info("SheetsPipeline: No new rows to write.")
-            return
-        try:
-            self.sheet.append_rows(self.new_rows, value_input_option="USER_ENTERED")
-            logger.info(f"SheetsPipeline: {len(self.new_rows)} new rows added to Google Sheets.")
-        except Exception as exc:
-            logger.error(f"SheetsPipeline: Write error — {exc}")
-
-
-# ==============================================================================
-# 🚀 SCOUTBOT DISTRIBUTION BRIDGE - WHATSAPP INTERCEPTOR
-# ==============================================================================
-class WhatsAppInterceptorPipeline:
-    """
-    Intercepts Scrapy items AFTER they pass Dedupe, and routes a copy 
-    to the local SQLite queue for the WhatsApp broadcast daemon.
-    """
-    def __init__(self):
-        self.conn = None
-        self.cursor = None
-
-    def open_spider(self, spider):
-        # Creates the DB file in the root of the Scrapy project
-        self.conn = sqlite3.connect('whatsapp_queue.db')
-        self.cursor = self.conn.cursor()
-        
-        self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS pending_broadcasts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT,
-                link TEXT,
-                deadline TEXT,
-                status TEXT DEFAULT 'unsent'
-            )
-        ''')
-        self.conn.commit()
-        logger.info("📡 WhatsApp Interceptor Pipeline connected to local queue.")
-
-    def close_spider(self, spider):
-        if self.conn:
-            self.conn.close()
-
-    def process_item(self, item, spider):
-        # We only want to queue items that actually have links and aren't closed
-        link = (item.get("application_link") or "").strip()
-        status = (item.get("status") or "Open").strip()
-
-        if link and status == "Open":
+        if self.nigeria_rows and self.nigeria_ws:
             try:
-                self.cursor.execute('''
-                    INSERT INTO pending_broadcasts (title, link, deadline)
-                    VALUES (?, ?, ?)
-                ''', (
-                    item.get("title", "New Opportunity"), 
-                    link, 
-                    item.get("deadline", "Check link")
-                ))
-                self.conn.commit()
-            except Exception as e:
-                logger.error(f"⚠️ Failed to queue item for WhatsApp: {e}")
-                
-        # Always return the item so the spider continues normally
-        return item
+                self.nigeria_ws.append_rows(self.nigeria_rows, value_input_option="USER_ENTERED")
+                logger.info(f"SheetsPipeline: {len(self.nigeria_rows)} rows → Nigeria tab.")
+            except Exception as exc:
+                logger.error(f"SheetsPipeline: Nigeria write error — {exc}")
+
+        if self.intl_rows and self.international_ws:
+            try:
+                self.international_ws.append_rows(self.intl_rows, value_input_option="USER_ENTERED")
+                logger.info(f"SheetsPipeline: {len(self.intl_rows)} rows → International tab.")
+            except Exception as exc:
+                logger.error(f"SheetsPipeline: International write error — {exc}")
+
+        if not self.nigeria_rows and not self.intl_rows:
+            logger.info("SheetsPipeline: No new rows to write.")
