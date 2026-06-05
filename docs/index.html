@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Primary SEO -->
+  <title>ScoutBot — Nigerian Student Opportunity List | Scholarships, Fellowships & Internships</title>
+  <meta name="description" content="ScoutBot is the #1 automated opportunity list for Nigerian students. Get weekly scholarships, fellowships, internships, and bootcamps from 30+ sources — delivered free to your inbox every Sunday.">
+  <meta name="keywords" content="
+    Nigerian student opportunities, scholarship list Nigeria, Nigeria scholarship 2025 2026,
+    internship Nigeria, fellowship Nigeria, Nigerian students scholarship, 
+    opportunities for Nigerian students, student opportunity list Nigeria,
+    African student scholarship, Nigeria internship list, study abroad Nigeria,
+    funded scholarship Nigeria, fully funded scholarship Nigeria,
+    Nigeria fellowship program, Nigerian youth opportunities,
+    scholarship for Nigerians, tech internship Nigeria, engineering scholarship Nigeria,
+    law fellowship Nigeria, medicine scholarship Nigeria, ScoutBot, opportunity digest Nigeria,
+    free scholarship alert Nigeria, scholarship newsletter Nigeria
+  ">
+  <meta name="author" content="Kamsi Richard Ivanna — TechHub Extensions">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://techhub-extensions.github.io/ScoutBot/">
+
+  <!-- Open Graph (Facebook, WhatsApp, LinkedIn) -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://techhub-extensions.github.io/ScoutBot/">
+  <meta property="og:title" content="ScoutBot — Nigerian Student Opportunity List">
+  <meta property="og:description" content="Free weekly digest of scholarships, fellowships, internships & bootcamps for Nigerian students. Updated daily, delivered every Sunday.">
+  <meta property="og:image" content="https://techhub-extensions.github.io/ScoutBot/og-image.png">
+  <meta property="og:site_name" content="ScoutBot">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="ScoutBot — Nigerian Student Opportunity List">
+  <meta name="twitter:description" content="Free weekly scholarship, fellowship & internship digest for Nigerian students. 500+ subscribers. Open source.">
+  <meta name="twitter:image" content="https://techhub-extensions.github.io/ScoutBot/og-image.png">
+
+  <!-- Structured Data — Organization + Website -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "name": "ScoutBot",
+        "url": "https://techhub-extensions.github.io/ScoutBot/",
+        "description": "Automated opportunity list for Nigerian students — scholarships, fellowships, internships.",
+        "keywords": "Nigerian students, scholarships Nigeria, fellowships Nigeria, internships Nigeria",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://docs.google.com/spreadsheets/d/1pLCEvDI1btjtOe1H3VgzCqpC6R0nRsEtnTwQhY6BqmU/edit",
+          "query": "ScoutBot opportunity list"
+        }
+      },
+      {
+        "@type": "Organization",
+        "name": "ScoutBot by TechHub Extensions",
+        "url": "https://github.com/TechHub-Extensions/ScoutBot",
+        "founder": {
+          "@type": "Person",
+          "name": "Kamsi Richard Ivanna"
+        },
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "email": "kamsirichard1960@gmail.com",
+          "contactType": "Support"
+        }
+      },
+      {
+        "@type": "NewsletterArticle",
+        "name": "ScoutBot Weekly Opportunity Digest",
+        "publisher": {
+          "@type": "Organization",
+          "name": "ScoutBot"
+        },
+        "about": "Nigerian student scholarships, fellowships, internships and opportunities"
+      }
+    ]
+  }
+  </script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a; background: #fff; }
+    header { background: #1a1a2e; color: #fff; padding: 40px 24px; text-align: center; }
+    header h1 { font-size: 2.2em; margin-bottom: 8px; }
+    header p { font-size: 1.1em; opacity: 0.85; max-width: 600px; margin: 0 auto; }
+    .badge { display: inline-block; background: rgba(255,255,255,0.15); border-radius: 20px; padding: 4px 14px; font-size: 0.85em; margin: 4px 2px; }
+    main { max-width: 800px; margin: 0 auto; padding: 32px 20px; }
+    .cta { background: #1a5276; color: #fff; border-radius: 8px; padding: 28px 24px; text-align: center; margin: 24px 0; }
+    .cta h2 { font-size: 1.4em; margin-bottom: 8px; }
+    .cta a { display: inline-block; background: #fff; color: #1a5276; font-weight: 700; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-size: 1em; margin: 12px 4px 4px; }
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 24px 0; }
+    .feature { border: 1px solid #e0e0e0; border-radius: 8px; padding: 18px; }
+    .feature .icon { font-size: 1.6em; margin-bottom: 8px; }
+    .feature h3 { font-size: 1em; margin-bottom: 4px; color: #1a5276; }
+    .feature p { font-size: 0.87em; color: #555; line-height: 1.5; }
+    .categories { background: #f8f9fa; border-radius: 8px; padding: 20px 24px; margin: 24px 0; }
+    .categories h2 { margin-bottom: 14px; color: #1a1a2e; }
+    .cat-list { display: flex; flex-wrap: wrap; gap: 10px; list-style: none; }
+    .cat-list li { background: #1a5276; color: #fff; border-radius: 5px; padding: 6px 14px; font-size: 0.9em; }
+    .stats { display: flex; gap: 16px; flex-wrap: wrap; margin: 20px 0; justify-content: center; }
+    .stat { text-align: center; }
+    .stat .num { font-size: 2em; font-weight: 700; color: #1a5276; }
+    .stat .label { font-size: 0.82em; color: #777; }
+    section h2 { font-size: 1.3em; color: #1a1a2e; margin: 28px 0 10px; border-bottom: 2px solid #1a5276; padding-bottom: 6px; }
+    section p, section li { font-size: 0.95em; line-height: 1.7; color: #333; }
+    section ul { padding-left: 20px; }
+    footer { background: #f0f0f0; text-align: center; padding: 20px; font-size: 0.85em; color: #666; }
+    footer a { color: #1a5276; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🤖 ScoutBot</h1>
+  <p>The automated opportunity list for Nigerian students.<br>
+     Scholarships · Fellowships · Internships · Bootcamps — updated daily.</p>
+  <div style="margin-top:14px;">
+    <span class="badge">🇳🇬 Nigeria</span>
+    <span class="badge">🌍 International</span>
+    <span class="badge">📧 Free Weekly Digest</span>
+    <span class="badge">🔓 Open Source</span>
+  </div>
+</header>
+
+<main>
+
+  <div class="stats">
+    <div class="stat"><div class="num">500+</div><div class="label">Subscribers</div></div>
+    <div class="stat"><div class="num">30+</div><div class="label">Sources Scraped</div></div>
+    <div class="stat"><div class="num">Weekly</div><div class="label">Email Digest</div></div>
+    <div class="stat"><div class="num">Free</div><div class="label">Always</div></div>
+  </div>
+
+  <div class="cta">
+    <h2>Get opportunities delivered to your inbox — free</h2>
+    <p style="font-size:0.95em;opacity:.9;margin-bottom:4px;">
+      Subscribe once. Receive every Sunday at 10AM Lagos time.
+    </p>
+    <a href="https://docs.google.com/forms/d/e/1FAIpQLSdummy/viewform">
+      📬 Subscribe to ScoutBot →
+    </a>
+    <a href="https://docs.google.com/spreadsheets/d/1pLCEvDI1btjtOe1H3VgzCqpC6R0nRsEtnTwQhY6BqmU/edit"
+       style="background:#27ae60;">
+      📋 View Live Spreadsheet →
+    </a>
+  </div>
+
+  <div class="features">
+    <div class="feature">
+      <div class="icon">⚡</div>
+      <h3>Updated Every 6 Hours</h3>
+      <p>ScoutBot scrapes 30+ sources automatically. New opportunities appear within hours of being posted.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🎯</div>
+      <h3>Students Only</h3>
+      <p>Scholarships, fellowships, internships, bootcamps. No startup noise, no VC content.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🗂️</div>
+      <h3>Nigeria & International — Separated</h3>
+      <p>Two clean tabs — one for Nigerian opportunities, one for international ones open to Nigerians.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🔗</div>
+      <h3>Direct Apply Links</h3>
+      <p>Every link goes straight to the company or organisation's application page. No blog posts in the way.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🧹</div>
+      <h3>Auto-Cleaned Daily</h3>
+      <p>Expired entries are removed automatically. Nothing stays on the list for more than 3 weeks.</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🔓</div>
+      <h3>Open Source</h3>
+      <p>100% open source. Anyone can add sources, fix bugs, or improve the email. No black box.</p>
+    </div>
+  </div>
+
+  <div class="categories">
+    <h2>📂 Opportunity Categories</h2>
+    <ul class="cat-list">
+      <li>🎓 Scholarship</li>
+      <li>🏛️ Fellowship</li>
+      <li>💼 Internship</li>
+      <li>💻 Bootcamp</li>
+      <li>🤝 Apprenticeship</li>
+      <li>🏆 Award / Competition</li>
+      <li>🌐 Exchange Program</li>
+      <li>🔬 Research Opportunity</li>
+    </ul>
+  </div>
+
+  <section>
+    <h2>🏷️ Legend</h2>
+    <ul>
+      <li>🇳🇬 <strong>Nigeria</strong> — Open to Nigerian students locally</li>
+      <li>🌍 <strong>International</strong> — Study/work abroad, open to Nigerians</li>
+      <li>💰 <strong>Funded</strong> — Includes a stipend, scholarship money, or travel grant</li>
+      <li>🎓 <strong>Postgraduate</strong> — Requires a Masters or PhD qualification</li>
+      <li>📋 <strong>Rolling</strong> — No fixed deadline, applications accepted ongoing</li>
+      <li>🔒 <strong>Closed</strong> — Deadline passed (archived, not shown in active list)</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>🌍 Who Is This For?</h2>
+    <p>ScoutBot was built for <strong>Nigerian university students and recent graduates</strong> who:</p>
+    <ul style="margin-top:8px;">
+      <li>Don't have time to check 20 websites every week</li>
+      <li>Miss opportunities because they weren't in the right WhatsApp group</li>
+      <li>Want funded international scholarships and don't know where to look</li>
+      <li>Are looking for internships in tech, engineering, finance, law, or medicine</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>🤝 Contribute</h2>
+    <p>ScoutBot is open source and welcomes contributors of all skill levels — especially Nigerian students.</p>
+    <ul style="margin-top:8px;">
+      <li>⭐ <a href="https://github.com/TechHub-Extensions/ScoutBot">Star the GitHub repo</a></li>
+      <li>🐛 <a href="https://github.com/TechHub-Extensions/ScoutBot/issues">Report broken sources or bugs</a></li>
+      <li>➕ <a href="https://github.com/TechHub-Extensions/ScoutBot/issues/new?template=new_source.yml">Suggest a new opportunity source</a></li>
+      <li>🔀 <a href="https://github.com/TechHub-Extensions/ScoutBot/blob/main/CONTRIBUTING.md">Read the contribution guide</a></li>
+    </ul>
+    <p style="margin-top:12px;">Start with issues labelled
+      <a href="https://github.com/TechHub-Extensions/ScoutBot/issues?q=label%3A%22good+first+issue%22">good first issue →</a>
+    </p>
+  </section>
+
+  <section>
+    <h2>💛 Support ScoutBot</h2>
+    <p>
+      ScoutBot is built by Nigerian students, for Nigerian students — with zero budget.
+      We are raising <strong>₦2,000,000</strong> to grow ScoutBot to 4,000 subscribers via advertising.
+    </p>
+    <p style="margin-top:8px;">
+      <a href="https://docs.google.com/document/d/1SqxaAg4tvuWp3LgGzqSSSw4_bxBWHmgmrQ9IyyKHtE8/edit">
+        📄 Read the fundraising brief →
+      </a>
+    </p>
+  </section>
+
+</main>
+
+<footer>
+  <p>
+    ScoutBot — Open Source &nbsp;|&nbsp;
+    <a href="https://github.com/TechHub-Extensions/ScoutBot">GitHub</a> &nbsp;|&nbsp;
+    Built with ❤️ by <a href="https://www.linkedin.com/in/kamsi-richard-024879257">Kamsi Richard Ivanna</a>
+    and the Nigerian student community
+  </p>
+  <p style="margin-top:6px;font-size:0.8em;">
+    Keywords: Nigerian student opportunities · scholarship list Nigeria · fellowship Nigeria ·
+    internship Nigeria 2025 2026 · ScoutBot · Nigerian youth opportunities · 
+    funded scholarship for Nigerians · student opportunity list Nigeria
+  </p>
+</footer>
+
+</body>
+</html>
