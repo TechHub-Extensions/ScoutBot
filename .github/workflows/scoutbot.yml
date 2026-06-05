@@ -1,60 +1,57 @@
-name: ScoutBot — Daily Run
+name: ScoutBot — Daily Scrape
+
+# Runs the scrape + cleanup pipeline every day at 08:00 WAT (07:00 UTC).
+# Does NOT send the email digest — that runs separately on Sundays.
+# This keeps the Google Sheet fresh throughout the week.
 
 on:
-  # ── Scheduled: once daily at 12:00 PM Lagos (WAT = UTC+1) ──────────────────
-  # GitHub Actions cron uses UTC. 11:00 UTC = 12:00 PM WAT.
   schedule:
-    - cron: "0 11 * * *"
-
-  # ── Manual trigger from the Actions tab ────────────────────────────────────
+    - cron: '0 7 * * *'    # 08:00 WAT daily
   workflow_dispatch:
 
 jobs:
-  run-pipeline:
-    name: Scrape → Cleanup → Email Digest
+  scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 30        # safety net — kills the job if it hangs
+    timeout-minutes: 60
 
     steps:
-      # 1. Check out code
-      - name: Checkout repository
+      - name: Check out code
         uses: actions/checkout@v4
 
-      # 2. Set up Python 3.11
-      - name: Set up Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-          cache: "pip"
+          python-version: '3.11'
+          cache: 'pip'
 
-      # 3. Install dependencies
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # 4. Write the Google service account JSON from the base64 secret
-      - name: Decode service account credentials
+      - name: Restore Google service account JSON
         run: |
-          echo "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}" \
-            | base64 --decode > service_account.json
+          echo "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}" | base64 -d > service_account.json
 
-      # 5. Build .env from secrets
-      - name: Write .env file
+      - name: Build .env file from secrets
         run: |
-          cat > .env << EOF
+          cat > .env <<EOF
           SENDER_EMAIL=${{ secrets.SENDER_EMAIL }}
           GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
           SPREADSHEET_ID=${{ secrets.SPREADSHEET_ID }}
           FORM_SHEET_ID=1dFcnVvQjWkuYhN1rplICTY0j88KgvGqQ3FzYId2ru4s
-          RECIPIENT_EMAILS=${{ secrets.RECIPIENT_EMAILS }}
           GOOGLE_SERVICE_ACCOUNT_JSON=service_account.json
+          RECIPIENT_EMAILS=${{ secrets.RECIPIENT_EMAILS }}
           EOF
 
-      # 6. Run the full pipeline (scrape → cleanup → email)
-      - name: Run ScoutBot pipeline
-        run: python run.py
+      - name: Scrape new opportunities + cleanup expired rows
+        run: python run.py --scrape && python run.py --cleanup
 
-      # 7. Clean up credentials — never leave secrets on the runner
-      - name: Remove credentials
+      - name: Upload logs
         if: always()
-        run: |
-          rm -f service_account.json .env
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrape-logs
+          path: |
+            scoutbot.log
+            scrapy.log
+          if-no-files-found: ignore
+          retention-days: 7
