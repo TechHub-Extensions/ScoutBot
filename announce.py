@@ -1,14 +1,15 @@
 """
 ScoutBot — One-time apology / update announcement email.
 
-Sent once to all subscribers after the June 2025 quality overhaul.
-Explains the feedback received and the specific fixes made.
+Sent ONCE to all subscribers after the June 2026 quality overhaul.
+After sending, the date is written to a "Config" tab in the spreadsheet.
+Every future call (including from digest.yml on Sundays) checks that flag
+and exits silently if the announcement was already sent.
 
 Usage:
-    python announce.py            # Send to all subscribers
-    python announce.py --test     # Send only to the 4 core team addresses
-
-Do NOT run this more than once.
+    python announce.py            # Send to all subscribers (skips if already sent)
+    python announce.py --test     # Send only to the 4 core team addresses (always sends)
+    python announce.py --force    # Ignore the already-sent flag and send anyway
 """
 
 import argparse
@@ -73,6 +74,53 @@ def _get_sheet_client():
         ],
     )
     return gspread.authorize(creds)
+
+
+CONFIG_TAB  = "Config"
+CONFIG_KEY  = "announcement_sent"
+
+
+def _check_already_sent():
+    """Returns the date string if the announcement was already sent, else None."""
+    try:
+        client = _get_sheet_client()
+        ss = client.open_by_key(SPREADSHEET_ID)
+        try:
+            cfg = ss.worksheet(CONFIG_TAB)
+        except Exception:
+            return None   # Config tab doesn't exist yet → not sent
+        keys = cfg.col_values(1)
+        vals = cfg.col_values(2)
+        for k, v in zip(keys, vals):
+            if k.strip().lower() == CONFIG_KEY and v.strip():
+                return v.strip()
+    except Exception as exc:
+        logger.warning(f"announce: Could not read Config tab — {exc}")
+    return None
+
+
+def _mark_as_sent():
+    """Write today's date to Config tab so future runs skip sending."""
+    try:
+        client = _get_sheet_client()
+        ss = client.open_by_key(SPREADSHEET_ID)
+        try:
+            cfg = ss.worksheet(CONFIG_TAB)
+        except Exception:
+            cfg = ss.add_worksheet(title=CONFIG_TAB, rows=50, cols=2)
+            cfg.append_row(["Key", "Value"])
+            logger.info("announce: Created Config tab.")
+        # Find existing row or append
+        keys = cfg.col_values(1)
+        for i, k in enumerate(keys, start=1):
+            if k.strip().lower() == CONFIG_KEY:
+                cfg.update_cell(i, 2, date.today().isoformat())
+                logger.info(f"announce: Updated {CONFIG_KEY} = {date.today().isoformat()}")
+                return
+        cfg.append_row([CONFIG_KEY, date.today().isoformat()])
+        logger.info(f"announce: Wrote {CONFIG_KEY} = {date.today().isoformat()}")
+    except Exception as exc:
+        logger.error(f"announce: Could not write Config tab — {exc}")
 
 
 def _all_recipients():
@@ -236,17 +284,34 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", action="store_true",
-                        help="Send only to the 4 core team addresses (dry run)")
+                        help="Send only to the 4 core team addresses (always sends, ignores flag)")
+    parser.add_argument("--force", action="store_true",
+                        help="Ignore the already-sent flag and send to all subscribers anyway")
     args = parser.parse_args()
 
     if args.test:
-        recipients = TEST_EMAILS
-        logger.info(f"announce: TEST MODE — sending to {len(recipients)} test addresses only.")
-    else:
-        recipients = _all_recipients()
-        logger.info(f"announce: LIVE MODE — sending to {len(recipients)} subscribers.")
+        # Test mode always sends — used by humans to preview, never by automated workflows
+        logger.info("announce: TEST MODE — sending to 4 core team addresses.")
+        send_announcement(TEST_EMAILS)
+        return
 
-    send_announcement(recipients)
+    # Check the one-time flag before sending to all subscribers
+    if not args.force:
+        sent_on = _check_already_sent()
+        if sent_on:
+            logger.info(
+                f"announce: Announcement already sent on {sent_on}. Skipping. "
+                f"Use --force to override."
+            )
+            return
+
+    recipients = _all_recipients()
+    logger.info(f"announce: LIVE MODE — sending to {len(recipients)} subscribers.")
+    success = send_announcement(recipients)
+
+    # Mark as sent so this never fires again automatically
+    if success and not args.force:
+        _mark_as_sent()
 
 
 if __name__ == "__main__":
