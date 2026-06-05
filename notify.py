@@ -13,9 +13,11 @@ Email contains two sections:
 import os
 import re
 import smtplib
+import argparse
 import logging
 import time
 from datetime import date, timedelta
+from pathlib import Path
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from dotenv import load_dotenv
@@ -44,6 +46,7 @@ EMAIL_BATCH_SIZE      = int(os.getenv("EMAIL_BATCH_SIZE", "30"))
 EMAIL_BATCH_PAUSE_SEC = int(os.getenv("EMAIL_BATCH_PAUSE_SEC", "360"))
 
 RECENT_DAYS = 7   # Only include opportunities added within this many days
+EMAIL_PREVIEW_PATH = Path(__file__).resolve().parent / "email_preview.html"
 
 SHEET_URL       = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit"
 FUNDRAISING_DOC = "https://docs.google.com/document/d/1SqxaAg4tvuWp3LgGzqSSSw4_bxBWHmgmrQ9IyyKHtE8/edit"
@@ -347,6 +350,19 @@ def build_html(nigeria_opps, intl_opps):
 
 # ── Send ─────────────────────────────────────────────────────────────────────
 
+def build_subject(nigeria_opps, intl_opps):
+    total = len(nigeria_opps) + len(intl_opps)
+    return f"ScoutBot Weekly — {total} Fresh Opportunities ({date.today().strftime('%b %d')})"
+
+
+def write_email_preview(html, subject, recipients, preview_path=EMAIL_PREVIEW_PATH):
+    preview_path.write_text(html, encoding="utf-8")
+    print(f"Subject: {subject}")
+    print(f"Recipients: {len(recipients)}")
+    print(f"HTML preview written to: {preview_path.name}")
+    logger.info(f"notify: Dry run preview written to {preview_path}.")
+    return preview_path
+
 def _build_personal_email(html_body, subject, recipient_email):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
@@ -364,8 +380,7 @@ def send_email(nigeria_opps, intl_opps, recipients):
         logger.warning("notify: No recipients.")
         return False
 
-    total   = len(nigeria_opps) + len(intl_opps)
-    subject = f"ScoutBot Weekly — {total} Fresh Opportunities ({date.today().strftime('%b %d')})"
+    subject = build_subject(nigeria_opps, intl_opps)
     html    = build_html(nigeria_opps, intl_opps)
 
     batches       = [recipients[i:i + EMAIL_BATCH_SIZE]
@@ -409,17 +424,41 @@ def send_email(nigeria_opps, intl_opps, recipients):
     return successes > 0
 
 
-def main():
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+def run_notify(dry_run=False):
     nigeria_opps = fetch_recent_from_tab("Nigeria",       limit=25)
     intl_opps    = fetch_recent_from_tab("International", limit=25)
 
-    if not nigeria_opps and not intl_opps:
+    if not nigeria_opps and not intl_opps and not dry_run:
         logger.warning("notify: No recent opportunities. No email sent.")
-        return
+        return False
+    if not nigeria_opps and not intl_opps:
+        logger.warning("notify: No recent opportunities; writing empty dry-run preview.")
 
     recipients = build_recipient_list()
-    send_email(nigeria_opps, intl_opps, recipients)
+
+    if dry_run:
+        subject = build_subject(nigeria_opps, intl_opps)
+        html = build_html(nigeria_opps, intl_opps)
+        write_email_preview(html, subject, recipients)
+        return True
+
+    return send_email(nigeria_opps, intl_opps, recipients)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="ScoutBot weekly email digest sender")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Build email_preview.html and print metadata without connecting to SMTP",
+    )
+    return parser.parse_args()
+
+
+def main():
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    args = parse_args()
+    run_notify(dry_run=args.dry_run)
 
 
 if __name__ == "__main__":

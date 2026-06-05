@@ -14,6 +14,7 @@ Usage:
   python run.py --schedule   # run on schedule (12:00 PM WAT, every day)
   python run.py --scrape     # only scrape + update sheet
   python run.py --notify     # only send email digest
+  python run.py --notify --dry-run  # write email_preview.html without SMTP
 """
 
 import argparse
@@ -65,13 +66,19 @@ def run_cleanup():
         log.error(f"Cleanup error: {exc}")
 
 
-def run_notify():
+def run_notify(dry_run=False):
     """Read fresh subscribers + open opps, then send the digest."""
-    log.info("▶ Sending digest emails…")
+    if dry_run:
+        log.info("▶ Building digest email preview…")
+    else:
+        log.info("▶ Sending digest emails…")
     try:
         from notify import run_notify as _notify
-        _notify()
-        log.info("✓ Digest sent.")
+        _notify(dry_run=dry_run)
+        if dry_run:
+            log.info("✓ Digest preview written.")
+        else:
+            log.info("✓ Digest sent.")
     except Exception as exc:
         log.error(f"Notify error: {exc}")
 
@@ -101,6 +108,10 @@ def parse_args():
         "--notify", action="store_true",
         help="Only send the email digest (no scrape)"
     )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="With --notify, build email_preview.html and print metadata without SMTP"
+    )
     return parser.parse_args()
 
 
@@ -112,7 +123,7 @@ def main():
         run_cleanup()
 
     elif args.notify:
-        run_notify()
+        run_notify(dry_run=args.dry_run)
 
     elif args.schedule:
         log.info(
