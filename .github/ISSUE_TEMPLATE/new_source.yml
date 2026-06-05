@@ -1,0 +1,64 @@
+name: "➕ Add New Opportunity Source"
+description: "Suggest a new website for ScoutBot to scrape."
+title: "[Source] "
+labels: ["good first issue", "new source"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new source! ScoutBot is always looking for high-quality sites that list real opportunities for Nigerian students.
+
+  - type: input
+    id: site_url
+    attributes:
+      label: Website URL
+      description: The URL of the site (or the specific category page to scrape)
+      placeholder: https://example.com/category/scholarships/
+    validations:
+      required: true
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Opportunity type
+      options:
+        - Scholarship
+        - Fellowship
+        - Internship
+        - Bootcamp / Training
+        - Competition / Award
+        - Mixed
+    validations:
+      required: true
+
+  - type: dropdown
+    id: region
+    attributes:
+      label: Geographic focus
+      options:
+        - Nigeria only
+        - Africa (including Nigeria)
+        - International (open to Nigerians)
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Site checklist
+      description: Please confirm before submitting
+      options:
+        - label: The site is publicly accessible without a login
+          required: true
+        - label: Opportunities are listed as individual pages/articles
+          required: true
+        - label: The site is updated at least monthly
+          required: true
+        - label: I have verified the site actually lists real, open opportunities
+          required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes (optional)
+      description: Any extra details — unique site structure, CSS selectors, etc.
