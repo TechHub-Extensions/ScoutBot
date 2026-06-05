@@ -1,0 +1,57 @@
+name: ScoutBot — Weekly Sunday Digest
+
+# Sends the weekly opportunity digest to all subscribers every Sunday
+# at 10:00 WAT (09:00 UTC).
+# Only opportunities added in the last 7 days are included.
+# Can also be triggered manually from the GitHub Actions tab.
+
+on:
+  schedule:
+    - cron: '0 9 * * 0'    # 10:00 WAT every Sunday
+  workflow_dispatch:
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    # 518 subscribers ÷ 30 per batch = 18 batches × 6-min pause ≈ 110 min
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore Google service account JSON
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}" | base64 -d > service_account.json
+
+      - name: Build .env file from secrets
+        run: |
+          cat > .env <<EOF
+          SENDER_EMAIL=${{ secrets.SENDER_EMAIL }}
+          GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
+          SPREADSHEET_ID=${{ secrets.SPREADSHEET_ID }}
+          FORM_SHEET_ID=1dFcnVvQjWkuYhN1rplICTY0j88KgvGqQ3FzYId2ru4s
+          GOOGLE_SERVICE_ACCOUNT_JSON=service_account.json
+          RECIPIENT_EMAILS=${{ secrets.RECIPIENT_EMAILS }}
+          EOF
+
+      - name: Send weekly digest email
+        run: python run.py --notify
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-logs
+          path: scoutbot.log
+          if-no-files-found: ignore
+          retention-days: 14
