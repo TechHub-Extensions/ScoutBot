@@ -1,0 +1,53 @@
+name: "🐛 Bug Report"
+description: "Report a broken source, bad data, or bot error."
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill in as much detail as you can.
+
+  - type: dropdown
+    id: bug_type
+    attributes:
+      label: What type of bug is this?
+      options:
+        - Broken scraping source (site not being scraped)
+        - Wrong application link (points to blog post instead of apply page)
+        - Outdated opportunity appeared in email or sheet
+        - Email not received / delivered to wrong address
+        - Wrong category / industry assigned to an opportunity
+        - Cleanup not removing expired entries
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: source_url
+    attributes:
+      label: Affected source URL (if applicable)
+      placeholder: https://example.com/scholarship/xyz
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happens?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce (if you can)
+      placeholder: |
+        1. Run `scrapy crawl opportunities -s CLOSESPIDER_ITEMCOUNT=10`
+        2. Check the sheet...
+        3. See the error...
