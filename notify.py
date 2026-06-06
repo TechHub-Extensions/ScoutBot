@@ -332,10 +332,26 @@ def build_html(nigeria_opps, intl_opps):
     <a href="{FUNDRAISING_DOC}" style="color:#888;">Support ScoutBot</a>
   </div>
 
-  <div style="margin-top:10px;padding:10px 0;font-size:12px;color:#bbb;">
+  <!-- ── inbox cleanup ─────────────────────────────────────────────────── -->
+  <div style="margin:18px 0 0;background:#fafafa;border:1px solid #e0e0e0;border-radius:7px;padding:14px 16px;">
+    <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#555;">🗑 Too many old ScoutBot emails?</p>
+    <p style="margin:0 0 10px;font-size:12px;color:#888;line-height:1.6;">
+      Click below → Gmail opens showing all ScoutBot emails →
+      tick the top checkbox → <em>"Select all conversations"</em> → 🗑 Delete.
+    </p>
+    <a href="{_GMAIL_SEARCH}"
+       style="display:inline-block;background:#e74c3c;color:#fff;font-weight:600;
+              padding:8px 18px;border-radius:5px;text-decoration:none;font-size:12px;">
+      Open Gmail &amp; delete all ScoutBot emails →
+    </a>
+    <span style="font-size:11px;color:#bbb;margin-left:10px;">
+      Or search: <code>from:kamsirichard1960@gmail.com</code>
+    </span>
+  </div>
+  <!-- ────────────────────────────────────────────────────────────────────── -->
+
+  <div style="margin-top:12px;padding:8px 0;font-size:12px;color:#bbb;">
     <a href="{_UNSUB_MAILTO}" style="color:#c0392b;">Unsubscribe</a>
-    &nbsp;&nbsp;|&nbsp;&nbsp;
-    <a href="{_GMAIL_SEARCH}" style="color:#aaa;">🗑 Delete all ScoutBot emails in Gmail</a>
     &nbsp;&nbsp;|&nbsp;&nbsp;
     <a href="{GITHUB_URL}" style="color:#aaa;">GitHub</a>
     <br><span style="font-size:11px;">ScoutBot is open source &amp; student-built. Always verify opportunities at source.</span>
