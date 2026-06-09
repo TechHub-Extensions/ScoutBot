@@ -222,6 +222,8 @@ def extract_deadline(text):
         r"apply by[:\s]+([A-Za-z]+ \d{1,2},?\s*\d{4})",
         r"closes?[:\s]+([A-Za-z]+ \d{1,2},?\s*\d{4})",
         r"closing date[:\s]+([A-Za-z]+ \d{1,2},?\s*\d{4})",
+        r"(\d{1,2}(?:st|nd|rd|th)\s+[A-Za-z]+\s+\d{4})",   # "30th June 2025"
+        r"(\d{1,2}/\d{1,2}/\d{4})",                          # "30/06/2025"
         r"(\d{1,2} [A-Za-z]+ \d{4})",
         r"([A-Za-z]+ \d{1,2},?\s*\d{4})",
     ]
@@ -229,6 +231,8 @@ def extract_deadline(text):
         m = re.search(p, text, re.IGNORECASE)
         if m:
             return m.group(1).strip()
+    if re.search(r"rolling\s+admissions?|reviewed\s+monthly", text, re.IGNORECASE):
+        return "Rolling"
     return ""
 
 
@@ -411,6 +415,10 @@ class OpportunitiesSpider(scrapy.Spider):
         "https://opportunitydesk.org/category/scholarships/",
         "https://opportunitydesk.org/category/fellowships/",
         "https://opportunitydesk.org/category/internships/",
+        # ── Global programmes open to Africans (added by tsouk88 / PR #43) ─
+        "https://yali.state.gov/",
+        "https://www.worldbank.org/en/programs/scholarships",
+        "https://commonwealthscholarships.ac.uk/applicants/apply/",
         # ── Nigerian portals ───────────────────────────────────────────────
         "https://scholarshipregion.com/category/nigeria-scholarships/",
         "https://myschoolng.com/scholarships/",
