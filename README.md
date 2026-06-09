@@ -174,6 +174,20 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide.
 
 ---
 
+---
+
+## Contributors
+
+ScoutBot is built with help from the open-source community. Every merged contribution is listed in [CONTRIBUTORS.md](./CONTRIBUTORS.md).
+
+| | Contributor | Contributions |
+|---|---|---|
+| ![olamidefasogbon](https://github.com/olamidefasogbon.png?size=32) | [@olamidefasogbon](https://github.com/olamidefasogbon) | WhatsApp distribution engine, V2 frontend, link validation — 30 PRs |
+| ![tsouk88](https://github.com/tsouk88.png?size=32) | [@tsouk88](https://github.com/tsouk88) | Deadline extraction improvements, YALI/World Bank/Commonwealth sources, Telegram module — 3 PRs |
+
+Want to see your name here? [Open a PR](https://github.com/TechHub-Extensions/ScoutBot/pulls) or [start with an issue](https://github.com/TechHub-Extensions/ScoutBot/issues).
+
+
 ## Inspired By
 
 [SWElist](https://swelist.com/) — a no-frills daily email digest of software engineering internships. ScoutBot applies the same philosophy to opportunities for Nigerian students.
