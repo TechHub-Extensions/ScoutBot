@@ -12,6 +12,7 @@ Email contains two sections:
 
 import os
 import re
+import imaplib
 import smtplib
 import logging
 import time
@@ -425,6 +426,41 @@ def send_email(nigeria_opps, intl_opps, recipients):
     return successes > 0
 
 
+def purge_sent_scoutbot_emails():
+    """
+    Connect to Gmail via IMAP and permanently delete every ScoutBot digest
+    email from the Sent folder.  Silently skips if credentials are missing.
+    """
+    if not SENDER_EMAIL or not GMAIL_APP_PASSWORD:
+        return
+    try:
+        mail = imaplib.IMAP4_SSL("imap.gmail.com")
+        mail.login(SENDER_EMAIL, GMAIL_APP_PASSWORD)
+
+        # Gmail stores sent mail in "[Gmail]/Sent Mail"
+        status, _ = mail.select('"[Gmail]/Sent Mail"')
+        if status != "OK":
+            mail.logout()
+            return
+
+        # Find all ScoutBot digest emails by subject prefix
+        _, data = mail.search(None, 'SUBJECT "ScoutBot"')
+        msg_ids = data[0].split() if data[0] else []
+
+        if msg_ids:
+            # Mark all matches as deleted
+            mail.store(b",".join(msg_ids), "+FLAGS", "\\Deleted")
+            mail.expunge()
+            logger.info(f"notify: Purged {len(msg_ids)} ScoutBot email(s) from Sent folder.")
+        else:
+            logger.info("notify: No ScoutBot emails found in Sent folder.")
+
+        mail.close()
+        mail.logout()
+    except Exception as exc:
+        logger.warning(f"notify: Could not purge Sent folder — {exc}")
+
+
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     nigeria_opps = fetch_recent_from_tab("Nigeria",       limit=25)
@@ -436,6 +472,7 @@ def main():
 
     recipients = build_recipient_list()
     send_email(nigeria_opps, intl_opps, recipients)
+    purge_sent_scoutbot_emails()
 
 
 if __name__ == "__main__":
