@@ -31,8 +31,21 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Restore Google service account JSON
+        env:
+          SA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SA_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
         run: |
-          echo "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}" | base64 -d > service_account.json
+          if [ -n "$SA_JSON_B64" ]; then
+            echo "$SA_JSON_B64" | base64 -d > service_account.json
+            echo "Restored from base64-encoded secret."
+          elif [ -n "$SA_JSON" ]; then
+            printf '%s' "$SA_JSON" > service_account.json
+            echo "Restored from raw JSON secret."
+          else
+            echo "ERROR: Neither GOOGLE_SERVICE_ACCOUNT_JSON nor GOOGLE_SERVICE_ACCOUNT_JSON_B64 is set in repo secrets!" >&2
+            exit 1
+          fi
+          python -c "import json; json.load(open('service_account.json')); print('service_account.json is valid.')"
 
       - name: Build .env file from secrets
         run: |
