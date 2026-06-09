@@ -291,9 +291,12 @@ class OpportunitiesSpider(scrapy.Spider):
         "https://opportunitydesk.org/category/scholarships/",
         "https://opportunitydesk.org/category/fellowships/",
         "https://opportunitydesk.org/category/internships/",
+        "https://yali.state.gov/",
+        "https://www.worldbank.org/en/programs/scholarships",
+        "https://commonwealthscholarships.ac.uk/applicants/apply/",
         # ── Nigerian portals ───────────────────────────────────────────────
         "https://scholarshipregion.com/category/nigeria-scholarships/",
-        "https://myschoolng.com/scholarships/",
+        "https://myschoolng.com/scholarships/",       
         # ── Youth Hub Africa ───────────────────────────────────────────────
         "https://opportunities.youthhubafrica.org/category/scholarships-opportunities/",
         "https://opportunities.youthhubafrica.org/category/fellowships/",
