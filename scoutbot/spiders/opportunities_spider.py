@@ -166,6 +166,10 @@ def infer_edu(text):
 
 def extract_deadline(text):
     patterns = [
+        r"applications?\s+close\s+on\s+(\d{1,2}/\d{1,2}/\d{4})",
+        r"deadline[:\s]+(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})",
+        r"submissions?\s+accepted\s+until\s+([A-Za-z]+\s+\d{1,2})",
+        r"(rolling admissions?)",
         r"deadline[:\s]+([A-Za-z]+ \d{1,2},?\s*\d{4})",
         r"apply by[:\s]+([A-Za-z]+ \d{1,2},?\s*\d{4})",
         r"closes?[:\s]+([A-Za-z]+ \d{1,2},?\s*\d{4})",
@@ -173,10 +177,12 @@ def extract_deadline(text):
         r"(\d{1,2} [A-Za-z]+ \d{4})",
         r"([A-Za-z]+ \d{1,2},?\s*\d{4})",
     ]
+
     for p in patterns:
         m = re.search(p, text, re.IGNORECASE)
         if m:
             return m.group(1).strip()
+
     return ""
 
 
