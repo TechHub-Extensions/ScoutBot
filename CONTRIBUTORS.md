@@ -2,7 +2,9 @@
 
 ScoutBot is built by Nigerian students and open-source developers. Every contribution — a new source, a bug fix, a new feature — helps more students discover opportunities they would have missed.
 
-Thank you to everyone who has contributed code to this project.
+[![Contributors](https://contrib.rocks/image?repo=TechHub-Extensions/ScoutBot)](https://github.com/TechHub-Extensions/ScoutBot/graphs/contributors)
+
+> _This image updates automatically every time a new contributor merges a PR._
 
 ---
 
@@ -23,8 +25,6 @@ These developers contributed code from outside the core team. Their work is merg
 ### Olamide Fasogbon
 **GitHub:** [@olamidefasogbon](https://github.com/olamidefasogbon) — 30 Pull Requests merged
 
-![olamidefasogbon](https://github.com/olamidefasogbon.png?size=80)
-
 **Contributions:**
 - Built the **WhatsApp distribution engine** — broadcasts opportunities to WhatsApp groups via a Node.js service
 - Built the **ScoutBot V2 frontend** — subscriber registration page with opportunity filter dropdowns
@@ -35,8 +35,6 @@ These developers contributed code from outside the core team. Their work is merg
 
 ### Kostas Tsoukalochoritis
 **GitHub:** [@tsouk88](https://github.com/tsouk88) — 3 Pull Requests merged
-
-![tsouk88](https://github.com/tsouk88.png?size=80)
 
 **Contributions:**
 - Improved **deadline extraction** — added ordinal date format ("30th June 2025"), numeric date format ("30/06/2025"), and "Rolling admissions" detection
