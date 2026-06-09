@@ -151,10 +151,8 @@ To encode the service account: `base64 -i service_account.json | tr -d '\n'`
 | Name | Email | Role |
 |------|-------|------|
 | **Kamsi Richard Ivanna** | kamsirichard1960@gmail.com | Founder & Project Lead |
-| Tega | tegazion7@gmail.com | Core Team |
 | Ibukun Ojo | adeojoibukun28@gmail.com | Core Team |
 | Success | successolamide46@gmail.com | Core Team |
-| Ayanfe | ayanfeoluwaalalade2000@gmail.com | Core Team |
 
 ---
 
