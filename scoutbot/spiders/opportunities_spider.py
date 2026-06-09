@@ -172,11 +172,15 @@ def extract_deadline(text):
         r"closing date[:\s]+([A-Za-z]+ \d{1,2},?\s*\d{4})",
         r"(\d{1,2} [A-Za-z]+ \d{4})",
         r"([A-Za-z]+ \d{1,2},?\s*\d{4})",
+        r"(\d{1,2}(?:st|nd|rd|th)\s+[A-Za-z]+\s+\d{4})",
+        r"(\d{1,2}/\d{1,2}/\d{4})",
     ]
     for p in patterns:
         m = re.search(p, text, re.IGNORECASE)
         if m:
             return m.group(1).strip()
+    if re.search(r"rolling\s+admissions?|reviewed\s+monthly", text, re.IGNORECASE):
+        return "Rolling"
     return ""
 
 
