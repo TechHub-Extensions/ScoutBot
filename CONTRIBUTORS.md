@@ -1,6 +1,6 @@
 # Contributors
 
-ScoutBot is built by Nigerian students and open-source developers. Every merged contribution — a new source, a bug fix, a new feature — is permanently credited here.
+ScoutBot is built by Nigerian students and open-source developers. Every contribution — a new source, a bug fix, a new feature — helps more students discover opportunities they would have missed.
 
 ---
 
@@ -18,7 +18,18 @@ ScoutBot is built by Nigerian students and open-source developers. Every merged 
       WhatsApp distribution engine<br/>
       ScoutBot V2 frontend<br/>
       Subscriber registration UI<br/>
-      Link validation & Vercel fixes
+      Link validation &amp; Vercel fixes
+    </td>
+    <td align="center" width="200">
+      <a href="https://github.com/saurabhhhcodes">
+        <img src="https://github.com/saurabhhhcodes.png" width="80" style="border-radius:50%" /><br/>
+        <b>Saurabh Kumar Bajpai</b>
+      </a><br/>
+      <a href="https://github.com/saurabhhhcodes">@saurabhhhcodes</a><br/><br/>
+      🔧 <b>3 PRs merged</b><br/>
+      --dry-run flag for email testing<br/>
+      Mobile-responsive email template<br/>
+      Comprehensive deadline extraction
     </td>
     <td align="center" width="200">
       <a href="https://github.com/tsouk88">
@@ -26,10 +37,21 @@ ScoutBot is built by Nigerian students and open-source developers. Every merged 
         <b>Kostas Tsoukalochoritis</b>
       </a><br/>
       <a href="https://github.com/tsouk88">@tsouk88</a><br/><br/>
-      🔧 <b>3 PRs merged</b><br/>
+      🔧 <b>4 PRs merged</b><br/>
       Deadline extraction improvements<br/>
       YALI, World Bank &amp; Commonwealth sources<br/>
-      Telegram digest module
+      Telegram digest module<br/>
+      Auto-label workflow
+    </td>
+    <td align="center" width="200">
+      <a href="https://github.com/prajjukorban">
+        <img src="https://github.com/prajjukorban.png" width="80" style="border-radius:50%" /><br/>
+        <b>Prajwal Korban</b>
+      </a><br/>
+      <a href="https://github.com/prajjukorban">@prajjukorban</a><br/><br/>
+      🔧 <b>1 PR contributed</b><br/>
+      Deadline extraction patterns<br/>
+      (merged into combined solution)
     </td>
   </tr>
 </table>
