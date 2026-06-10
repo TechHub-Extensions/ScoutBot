@@ -1,0 +1,56 @@
+name: ScoutBot — Sheet Row Counter
+
+on:
+  workflow_dispatch:
+
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - run: pip install gspread google-auth python-dotenv
+
+      - name: Restore service account
+        env:
+          SA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SA_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+        run: |
+          if [ -n "$SA_JSON_B64" ]; then
+            echo "$SA_JSON_B64" | base64 -d > service_account.json
+          else
+            printf '%s' "$SA_JSON" > service_account.json
+          fi
+
+      - name: Count rows in each tab
+        run: |
+          python3 << 'PYEOF'
+          import gspread
+          from google.oauth2.service_account import Credentials
+          SPREADSHEET_ID = "1pLCEvDI1btjtOe1H3VgzCqpC6R0nRsEtnTwQhY6BqmU"
+          creds = Credentials.from_service_account_file(
+              "service_account.json",
+              scopes=["https://www.googleapis.com/auth/spreadsheets",
+                      "https://www.googleapis.com/auth/drive"],
+          )
+          client = gspread.authorize(creds)
+          ss = client.open_by_key(SPREADSHEET_ID)
+          print("\n=== Sheet tab summary ===")
+          for ws in ss.worksheets():
+              rows = ws.get_all_values()
+              data_rows = len(rows) - 1  # exclude header
+              print(f"  Tab '{ws.title}': {data_rows} data rows ({len(rows)} total with header)")
+              if data_rows > 0 and ws.title in ("Nigeria", "International"):
+                  # Show last 5 entries for each
+                  print(f"  Last 5 entries in '{ws.title}':")
+                  for row in rows[-5:]:
+                      if row:
+                          title = row[0][:60] if row else ""
+                          date  = row[11] if len(row) > 11 else "?"
+                          rng   = row[3]  if len(row) > 3  else "?"
+                          print(f"    [{date}] ({rng}) {title}")
+          PYEOF
