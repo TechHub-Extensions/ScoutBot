@@ -437,25 +437,10 @@ def org_from_url(url):
 class OpportunitiesSpider(scrapy.Spider):
     name = "opportunities"
 
-    # Student-focused listing pages only — startup/funding URLs removed
+    # Nigeria-only sources — tagged/searched pages only.
+    # Scraping general Africa categories is what caused SA/Uganda contamination
+    # and slow (20-min) runs. These 10 URLs are all Nigeria-labelled.
     start_urls = [
-        # ── International aggregators ──────────────────────────────────────
-        "https://www.scholars4dev.com/category/scholarships-for-africans/",
-        "https://www.opportunitiesforafricans.com/category/scholarships/",
-        "https://www.opportunitiesforafricans.com/category/fellowships/",
-        "https://www.opportunitiesforafricans.com/category/internships/",
-        "https://afterschoolafrica.com/scholarships/",
-        "https://afterschoolafrica.com/fellowships/",
-        "https://afterschoolafrica.com/internships/",
-        "https://opportunitydesk.org/category/scholarships/",
-        "https://opportunitydesk.org/category/fellowships/",
-        "https://opportunitydesk.org/category/internships/",
-        # ── Global programmes open to Africans (added by tsouk88 / PR #43) ─
-        "https://yali.state.gov/",
-        "https://www.worldbank.org/en/programs/scholarships",
-        "https://commonwealthscholarships.ac.uk/applicants/apply/",
-        # ── Nigerian portals & Nigeria-tagged aggregator pages ────────────
-        # (scholarshipregion.com/category/ returns 404; myschoolng.com is down)
         "https://www.opportunitiesforafricans.com/tag/nigeria/",
         "https://opportunitydesk.org/tag/nigeria/",
         "https://afterschoolafrica.com/tag/nigeria/",
@@ -466,51 +451,13 @@ class OpportunitiesSpider(scrapy.Spider):
         "https://opportunitydesk.org/?s=nigeria+internship",
         "https://opportunitydesk.org/?s=nigeria+fellowship",
         "https://www.opportunitiesforafricans.com/?s=nigeria",
-
-        # ── Youth Hub Africa ───────────────────────────────────────────────
-        "https://opportunities.youthhubafrica.org/category/scholarships-opportunities/",
-        "https://opportunities.youthhubafrica.org/category/fellowships/",
-        "https://opportunities.youthhubafrica.org/category/internships/",
-        # ── Asia-specific (open to Africans) ──────────────────────────────
-        "https://www.scholars4dev.com/category/scholarships-in-asia/",
-        "https://www.scholars4dev.com/category/scholarships-in-china/",
-        "https://www.scholars4dev.com/category/scholarships-in-japan/",
-        "https://www.scholars4dev.com/category/scholarships-in-south-korea/",
-        "https://www.scholars4dev.com/category/scholarships-in-india/",
-        "https://opportunitydesk.org/?s=china+scholarship+africa",
-        "https://opportunitydesk.org/?s=japan+scholarship+africa",
-        "https://opportunitydesk.org/?s=korea+scholarship+africa",
-        "https://opportunitydesk.org/?s=asian+scholarship",
-        "https://www.opportunitiesforafricans.com/?s=china",
-        "https://www.opportunitiesforafricans.com/?s=japan",
-        "https://www.opportunitiesforafricans.com/?s=korea",
-        "https://www.opportunitiesforafricans.com/?s=india",
-        "https://afterschoolafrica.com/?s=china+scholarship",
-        "https://afterschoolafrica.com/?s=japan+scholarship",
-        "https://afterschoolafrica.com/?s=korea+scholarship",
-        "https://opportunitydesk.org/?s=asian+development+bank",
-        "https://opportunities.youthhubafrica.org/?s=china",
-        "https://opportunities.youthhubafrica.org/?s=japan",
-        "https://opportunities.youthhubafrica.org/?s=korea",
     ]
 
-    MAX_PAGES = 2  # Reduced from 3 to keep results recent
+    MAX_PAGES = 1  # No pagination — page 1 only keeps runs under 5 minutes
 
     def start_requests(self):
         for url in self.start_urls:
             yield scrapy.Request(url, callback=self.parse)
-
-        for sub in REDDIT_SUBREDDITS:
-            url = f"https://www.reddit.com/r/{sub}/new/.rss?limit=25"
-            yield scrapy.Request(
-                url,
-                callback=self.parse_reddit_rss,
-                headers={
-                    "Accept": "application/rss+xml, application/xml, text/xml",
-                    "User-Agent": "python:scoutbot.opportunities-aggregator:v1.0 (by /u/scoutbot_ng)",
-                },
-                meta={"subreddit": sub},
-            )
 
     def parse(self, response):
         """Parse a listing page and follow links to individual opportunity pages."""
