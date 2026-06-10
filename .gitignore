@@ -52,3 +52,6 @@ distribution-bridge/.wwebjs_auth/
 Thumbs.db
 *.db-shm
 *.db-wal
+
+# Explicitly ignore any nested .env files
+frontend-handler/.env
