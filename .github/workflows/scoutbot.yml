@@ -63,6 +63,12 @@ jobs:
       - name: Scrape new opportunities
         run: python run.py --scrape
 
+      - name: Print Scrapy stats
+        if: always()
+        run: |
+          echo "=== scrapy.log (last 120 lines) ==="
+          tail -n 120 scrapy.log 2>/dev/null || echo "(no scrapy.log)"
+
       - name: Clean expired entries (21-day rule)
         run: python run.py --cleanup
 
