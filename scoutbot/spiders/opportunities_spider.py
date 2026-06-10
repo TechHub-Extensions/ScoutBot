@@ -74,12 +74,12 @@ CATEGORY_MAP = [
 
 # Categories that are startup/funding — items in these categories are dropped
 EXCLUDED_CATEGORIES = {
-    "VC Funding", "Incubator", "Accelerator", "Pitch Competition", "Grant",
+    "VC Funding", "Incubator", "Accelerator", "Pitch Competition",
 }
 
 RANGE_KEYWORDS_INTL = [
     "international", "study abroad", "global", "worldwide", "overseas",
-    "fulbright", "uk ", "usa", "europe", "canada", "australia",
+    "fulbright", "united kingdom", "study in the usa", "europe", "canada", "australia",
     # Removed "fully funded" and "full scholarship" — many Nigerian domestic
     # scholarships are fully funded; these keywords wrongly routed them to International.
     "china", "japan", "korea", "india", "asia", "singapore", "malaysia",
@@ -108,8 +108,9 @@ CATEGORY_URL_PATTERNS = [
 
 PAST_YEAR_RE = re.compile(r"\b(202[0-4])\b")
 
-# Maximum age of a scraped post before we skip it (days) — 3-week hard limit
-MAX_POST_AGE_DAYS = 21
+# Maximum age of a scraped post before we skip it (days) — 2-month window so
+# programmes posted in past months but still open are not skipped.
+MAX_POST_AGE_DAYS = 60
 
 # Reddit subreddits (student-focused only)
 REDDIT_SUBREDDITS = [
@@ -452,6 +453,20 @@ class OpportunitiesSpider(scrapy.Spider):
         "https://opportunitydesk.org/?s=nigeria+internship",
         "https://opportunitydesk.org/?s=nigeria+fellowship",
         "https://www.opportunitiesforafricans.com/?s=nigeria",
+        # ── Dedicated Nigeria internship & career platforms ───────────────
+        "https://ngopportunities.ng/category/internships/",
+        "https://ngopportunities.ng/category/scholarships/",
+        "https://ngopportunities.ng/category/fellowships/",
+        "https://www.myscholarshipportal.ng/",
+        "https://opportunitiesforafricans.com/category/internships/?s=nigeria",
+        "https://afterschoolafrica.com/?s=nigerian+internship",
+        "https://opportunitydesk.org/?s=nigerian+internship",
+        # ── Nigeria-specific search queries on trusted aggregators ────────
+        "https://opportunitydesk.org/?s=nigeria+2026",
+        "https://afterschoolafrica.com/?s=nigeria+2026",
+        "https://www.opportunitiesforafricans.com/?s=nigeria+2026",
+        "https://opportunitydesk.org/?s=open+to+nigerians",
+        "https://afterschoolafrica.com/?s=nigerian+students",
         # ── Youth Hub Africa ───────────────────────────────────────────────
         "https://opportunities.youthhubafrica.org/category/scholarships-opportunities/",
         "https://opportunities.youthhubafrica.org/category/fellowships/",
