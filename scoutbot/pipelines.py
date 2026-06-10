@@ -28,22 +28,22 @@ SPREADSHEET_ID = os.getenv("SPREADSHEET_ID", "1pLCEvDI1btjtOe1H3VgzCqpC6R0nRsEtn
 SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "service_account.json")
 
 SHEET_HEADERS = [
-    "Title",           # 0
-    "Industry",        # 1
-    "Category",        # 2
-    "Range",           # 3
-    "Education Level", # 4
-    "Organization",    # 5
-    "Summary",         # 6
-    "Application Link",# 7
-    "Opening Date",    # 8
-    "Deadline",        # 9  <- cleanup.py DEADLINE_COL_INDEX
-    "Status",          # 10 <- cleanup.py STATUS_COL_INDEX
-    "Date Added",      # 11 <- cleanup.py DATE_ADDED_COL_INDEX
-    "AI Blurb",        # 12
+    "Title",            # 0
+    "Industry",         # 1
+    "Category",         # 2
+    "Range",            # 3
+    "Education Level",  # 4
+    "Organization",     # 5
+    "Summary",          # 6
+    "Application Link", # 7
+    "Opening Date",     # 8
+    "Deadline",         # 9  <- cleanup.py DEADLINE_COL_INDEX
+    "Status",           # 10 <- cleanup.py STATUS_COL_INDEX
+    "Date Added",       # 11 <- cleanup.py DATE_ADDED_COL_INDEX
+    "AI Blurb",         # 12
 ]
 
-LINK_COL_INDEX = 7
+LINK_COL_INDEX    = 7
 TAB_NIGERIA       = "Nigeria"
 TAB_INTERNATIONAL = "International"
 
@@ -59,15 +59,19 @@ def _resolve_json_path():
 
 
 def _get_or_create_tab(spreadsheet, name):
-    """Return the named worksheet, creating it with headers if it doesn't exist."""
+    """Return the named worksheet, creating it with headers if it does not exist."""
     try:
         ws = spreadsheet.worksheet(name)
     except Exception:
         ws = spreadsheet.add_worksheet(title=name, rows=2000, cols=len(SHEET_HEADERS))
         ws.append_row(SHEET_HEADERS)
-        logger.info(f"SheetsPipeline: Created new tab '{name}'.")
+        logger.info("SheetsPipeline: Created new tab '%s'.", name)
     return ws
 
+
+# ---------------------------------------------------------------------------
+# 1. DedupePipeline
+# ---------------------------------------------------------------------------
 
 class DedupePipeline:
     """Drops items whose link has already been seen in this run."""
@@ -87,11 +91,15 @@ class DedupePipeline:
         return item
 
 
+# ---------------------------------------------------------------------------
+# 2. GeminiPipeline
+# ---------------------------------------------------------------------------
+
 class GeminiPipeline:
     """Score each opportunity with Gemini Flash and add an AI blurb.
 
     Items scoring below MIN_SCORE are dropped before they reach the sheet.
-    If the API key is missing or an API call fails, the item passes through
+    If GEMINI_API_KEY is missing or an API call fails the item passes through
     with an empty blurb so a Gemini outage never silences the daily scrape.
     """
 
@@ -122,11 +130,12 @@ class GeminiPipeline:
         return result
 
     def _call_gemini(self, item):
-        """Blocking Gemini call — run inside deferToThread."""
-        title    = (item.get("title") or "").strip()
+        """Blocking Gemini REST call — runs inside deferToThread."""
+        title    = (item.get("title")    or "").strip()
         category = (item.get("category") or "").strip()
-        summary  = (item.get("summary") or "")[:300].strip()
+        summary  = (item.get("summary")  or "")[:300].strip()
         deadline = (item.get("deadline") or "").strip()
+        json_fmt = '{"score": <1-10>, "blurb": "<1-2 sentence blurb>"}'
 
         prompt = (
             "You help Nigerian university students discover opportunities.\n\n"
@@ -139,8 +148,7 @@ class GeminiPipeline:
             f"Category: {category}\n"
             f"Summary: {summary}\n"
             f"Deadline: {deadline}\n\n"
-            "Respond in JSON only — no markdown, no code fences:\n"
-            '{"score": <1-10>, "blurb": "<1-2 sentence blurb>"}' "
+            f"Respond in JSON only — no markdown, no code fences:\n{json_fmt}"
         )
 
         try:
@@ -157,28 +165,36 @@ class GeminiPipeline:
             with urllib.request.urlopen(req, timeout=12) as r:
                 resp = json.loads(r.read())
 
-            raw = resp["candidates"][0]["content"]["parts"][0]["text"]
-            raw = re.sub(r"```[a-z]*\s*|\s*```", "", raw).strip()
+            raw   = resp["candidates"][0]["content"]["parts"][0]["text"]
+            raw   = re.sub(r"```[a-z]*\s*|\s*```", "", raw).strip()
             result = json.loads(raw)
-            score = int(result.get("score", 0))
-            blurb = str(result.get("blurb", "")).strip()
+            score  = int(result.get("score", 0))
+            blurb  = str(result.get("blurb", "")).strip()
 
             if score < self.MIN_SCORE:
                 raise DropItem(
-                    f"GeminiPipeline: score={score} (min {self.MIN_SCORE}) — \"{title[:60]}\""
+                    f"GeminiPipeline: score={score} (min {self.MIN_SCORE}) "
+                    f"— \"{title[:60]}\""
                 )
 
             item["ai_blurb"] = blurb
-            logger.debug(f"GeminiPipeline: score={score} — {title[:60]}")
+            logger.debug("GeminiPipeline: score=%d — %s", score, title[:60])
             return item
 
         except DropItem:
             raise
         except Exception as exc:
-            logger.warning(f"GeminiPipeline: API error for \"{title[:60]}\" — {exc}; passing through.")
+            logger.warning(
+                "GeminiPipeline: API error for \"%s\" — %s; passing through.",
+                title[:60], exc,
+            )
             item["ai_blurb"] = ""
             return item
 
+
+# ---------------------------------------------------------------------------
+# 3. SheetsPipeline
+# ---------------------------------------------------------------------------
 
 class SheetsPipeline:
     """Routes opportunities to the Nigeria or International tab."""
@@ -213,17 +229,16 @@ class SheetsPipeline:
             self.international_ws = _get_or_create_tab(ss, TAB_INTERNATIONAL)
 
             for ws in (self.nigeria_ws, self.international_ws):
-                rows = ws.get_all_values()
-                for row in rows[1:]:
+                for row in ws.get_all_values()[1:]:
                     if len(row) > LINK_COL_INDEX and row[LINK_COL_INDEX].strip():
                         self.existing_links.add(row[LINK_COL_INDEX].strip())
 
             logger.info(
-                f"SheetsPipeline: {len(self.existing_links)} existing entries "
-                f"loaded from Nigeria + International tabs."
+                "SheetsPipeline: %d existing entries loaded from Nigeria + International tabs.",
+                len(self.existing_links),
             )
         except Exception as exc:
-            logger.error(f"SheetsPipeline: Failed to connect — {exc}")
+            logger.error("SheetsPipeline: Failed to connect — %s", exc)
 
     def process_item(self, item, spider=None):
         link = (item.get("application_link") or "").strip()
@@ -232,19 +247,19 @@ class SheetsPipeline:
 
         today = date.today().isoformat()
         row = [
-            (item.get("title") or "").strip(),
-            (item.get("industry") or "General").strip(),
-            (item.get("category") or "Opportunity").strip(),
-            (item.get("range") or "").strip(),
-            (item.get("education_level") or "Any").strip(),
-            (item.get("organization") or "").strip(),
-            (item.get("summary") or "")[:400].strip(),
+            (item.get("title")            or "").strip(),
+            (item.get("industry")         or "General").strip(),
+            (item.get("category")         or "Opportunity").strip(),
+            (item.get("range")            or "").strip(),
+            (item.get("education_level")  or "Any").strip(),
+            (item.get("organization")     or "").strip(),
+            (item.get("summary")          or "")[:400].strip(),
             link,
-            (item.get("opening_date") or "").strip(),
-            (item.get("deadline") or "").strip(),
-            (item.get("status") or "Open").strip(),
+            (item.get("opening_date")     or "").strip(),
+            (item.get("deadline")         or "").strip(),
+            (item.get("status")           or "Open").strip(),
             today,
-            (item.get("ai_blurb") or "").strip(),
+            (item.get("ai_blurb")         or "").strip(),
         ]
 
         if (item.get("range") or "").strip() == "International":
@@ -263,27 +278,28 @@ class SheetsPipeline:
             try:
                 self.nigeria_ws.append_rows(self.nigeria_rows, value_input_option="USER_ENTERED")
                 nigeria_written = len(self.nigeria_rows)
-                logger.info(f"SheetsPipeline: {nigeria_written} rows -> Nigeria tab.")
+                logger.info("SheetsPipeline: %d rows -> Nigeria tab.", nigeria_written)
             except Exception as exc:
-                logger.error(f"SheetsPipeline: Nigeria write error — {exc}")
+                logger.error("SheetsPipeline: Nigeria write error — %s", exc)
 
         if self.intl_rows and self.international_ws:
             try:
                 self.international_ws.append_rows(self.intl_rows, value_input_option="USER_ENTERED")
                 intl_written = len(self.intl_rows)
-                logger.info(f"SheetsPipeline: {intl_written} rows -> International tab.")
+                logger.info("SheetsPipeline: %d rows -> International tab.", intl_written)
             except Exception as exc:
-                logger.error(f"SheetsPipeline: International write error — {exc}")
+                logger.error("SheetsPipeline: International write error — %s", exc)
 
         logger.info(
-            f"SheetsPipeline SUMMARY: "
-            f"existing={len(self.existing_links)} loaded, "
-            f"nigeria_new={len(self.nigeria_rows)}, intl_new={len(self.intl_rows)}, "
-            f"nigeria_written={nigeria_written}, intl_written={intl_written}."
+            "SheetsPipeline SUMMARY: existing=%d loaded, nigeria_new=%d, intl_new=%d, "
+            "nigeria_written=%d, intl_written=%d.",
+            len(self.existing_links),
+            len(self.nigeria_rows), len(self.intl_rows),
+            nigeria_written, intl_written,
         )
         if not self.nigeria_rows and not self.intl_rows:
             logger.info(
-                "SheetsPipeline: No new rows — either all items were duplicates "
-                "of the %d existing links, or the spider found nothing new.",
+                "SheetsPipeline: No new rows — all items were duplicates of the "
+                "%d existing links, or the spider found nothing new.",
                 len(self.existing_links),
             )
