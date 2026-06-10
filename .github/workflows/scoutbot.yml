@@ -59,6 +59,7 @@ jobs:
           FORM_SHEET_ID=1dFcnVvQjWkuYhN1rplICTY0j88KgvGqQ3FzYId2ru4s
           GOOGLE_SERVICE_ACCOUNT_JSON=service_account.json
           RECIPIENT_EMAILS=${{ secrets.RECIPIENT_EMAILS }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
           EOF
 
       - name: Scrape new opportunities
