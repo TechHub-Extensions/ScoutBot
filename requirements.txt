@@ -10,3 +10,4 @@ lxml==6.1.0
 cssselect==1.2.0
 schedule==1.2.2
 python-dateutil==2.9.0
+pyOpenSSL>=22.0,<24.0
