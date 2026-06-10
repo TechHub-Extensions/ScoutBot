@@ -14,9 +14,11 @@ import os
 import re
 import imaplib
 import smtplib
+import argparse
 import logging
 import time
 from datetime import date, timedelta
+from pathlib import Path
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from dotenv import load_dotenv
@@ -45,6 +47,7 @@ EMAIL_BATCH_SIZE      = int(os.getenv("EMAIL_BATCH_SIZE", "30"))
 EMAIL_BATCH_PAUSE_SEC = int(os.getenv("EMAIL_BATCH_PAUSE_SEC", "360"))
 
 RECENT_DAYS = 7   # Only include opportunities added within this many days
+EMAIL_PREVIEW_PATH = Path(__file__).resolve().parent / "email_preview.html"
 
 SHEET_URL       = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit"
 FUNDRAISING_DOC = "https://docs.google.com/document/d/1SqxaAg4tvuWp3LgGzqSSSw4_bxBWHmgmrQ9IyyKHtE8/edit"
@@ -260,7 +263,7 @@ def _opp_list_items(opps):
         color    = CATEGORY_COLORS.get(cat, "#555")
         badge    = (
             f'<span style="display:inline-block;background:{color};color:#fff;'
-            f'padding:1px 7px;border-radius:3px;font-size:11px;'
+            f'padding:2px 8px;border-radius:3px;font-size:12px;'
             f'font-weight:600;margin-right:4px;">{cat}</span>'
         )
         dl_html  = (
@@ -269,14 +272,15 @@ def _opp_list_items(opps):
         )
         ind_html = f'&nbsp;·&nbsp;{industry}' if industry and industry != "General" else ""
         html += f"""
-        <li style="padding:10px 0;border-bottom:1px solid #f0f0f0;list-style:none;">
-          <a href="{link}" target="_blank"
-             style="color:#1a1a2e;font-weight:600;font-size:14px;text-decoration:none;">
+        <li class="opportunity-item"
+            style="padding:12px 0;border-bottom:1px solid #f0f0f0;list-style:none;">
+          <a class="opportunity-title" href="{link}" target="_blank"
+             style="color:#1a1a2e;font-weight:600;font-size:15px;line-height:1.45;text-decoration:none;">
             {title}</a>
-          &nbsp;<a href="{link}" target="_blank"
-                   style="color:#27ae60;font-size:12px;text-decoration:none;font-weight:600;">
+          <a class="apply-link" href="{link}" target="_blank"
+             style="color:#27ae60;font-size:14px;line-height:44px;text-decoration:none;font-weight:700;margin-left:6px;white-space:nowrap;">
             Apply&nbsp;→</a><br>
-          <span style="font-size:12px;color:#777;">{badge}{ind_html}{dl_html}</span>
+          <span style="font-size:13px;line-height:1.5;color:#777;">{badge}{ind_html}{dl_html}</span>
         </li>"""
     return html
 
@@ -310,12 +314,33 @@ def build_html(nigeria_opps, intl_opps):
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    @media only screen and (max-width: 480px) {{
+      body {{ padding: 18px 12px !important; }}
+      .email-shell {{ width: 100% !important; }}
+      .digest-title {{ font-size: 22px !important; line-height: 1.25 !important; }}
+      .intro-copy, .opportunity-title {{ font-size: 15px !important; }}
+      .apply-link {{
+        display: inline-block !important;
+        min-height: 44px !important;
+        line-height: 44px !important;
+        padding: 0 2px !important;
+      }}
+      .footer-links a {{
+        display: inline-block !important;
+        min-height: 44px !important;
+        line-height: 44px !important;
+        margin-right: 12px !important;
+      }}
+    }}
+  </style>
 </head>
 <body style="font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;max-width:620px;
              margin:auto;padding:24px 16px;background:#fff;">
 
+  <div class="email-shell" style="width:100%;max-width:620px;margin:0 auto;">
   <div style="border-bottom:3px solid #1a1a2e;padding-bottom:12px;margin-bottom:18px;">
-    <h2 style="margin:0;color:#1a1a2e;font-size:20px;">ScoutBot — Weekly Digest</h2>
+    <h2 class="digest-title" style="margin:0;color:#1a1a2e;font-size:20px;line-height:1.3;">ScoutBot — Weekly Digest</h2>
     <p style="margin:4px 0 0;color:#777;font-size:13px;">{span_str} &nbsp;·&nbsp; {total} fresh opportunities</p>
   </div>
 
@@ -364,6 +389,20 @@ def build_html(nigeria_opps, intl_opps):
 
 # ── Send ─────────────────────────────────────────────────────────────────────
 
+def build_subject(nigeria_opps, intl_opps):
+    total = len(nigeria_opps) + len(intl_opps)
+    return f"ScoutBot Weekly — {total} Fresh Opportunities ({date.today().strftime('%b %d')})"
+
+
+def write_email_preview(html, subject, recipients, preview_path=EMAIL_PREVIEW_PATH):
+    preview_path.write_text(html, encoding="utf-8")
+    print(f"Subject: {subject}")
+    print(f"Recipients: {len(recipients)}")
+    print(f"HTML preview written to: {preview_path.name}")
+    logger.info(f"notify: Dry run — preview written to {preview_path}.")
+    return preview_path
+
+
 def _build_personal_email(html_body, subject, recipient_email):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
@@ -381,8 +420,7 @@ def send_email(nigeria_opps, intl_opps, recipients):
         logger.warning("notify: No recipients.")
         return False
 
-    total   = len(nigeria_opps) + len(intl_opps)
-    subject = f"ScoutBot Weekly — {total} Fresh Opportunities ({date.today().strftime('%b %d')})"
+    subject = build_subject(nigeria_opps, intl_opps)
     html    = build_html(nigeria_opps, intl_opps)
 
     batches       = [recipients[i:i + EMAIL_BATCH_SIZE]
@@ -461,18 +499,38 @@ def purge_sent_scoutbot_emails():
         logger.warning(f"notify: Could not purge Sent folder — {exc}")
 
 
-def main():
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+def run_notify(dry_run=False):
     nigeria_opps = fetch_recent_from_tab("Nigeria",       limit=25)
     intl_opps    = fetch_recent_from_tab("International", limit=25)
 
-    if not nigeria_opps and not intl_opps:
+    if not nigeria_opps and not intl_opps and not dry_run:
         logger.warning("notify: No recent opportunities. No email sent.")
-        return
+        return False
+    if not nigeria_opps and not intl_opps:
+        logger.warning("notify: No recent opportunities; writing empty dry-run preview.")
 
     recipients = build_recipient_list()
-    send_email(nigeria_opps, intl_opps, recipients)
+
+    if dry_run:
+        subject = build_subject(nigeria_opps, intl_opps)
+        html    = build_html(nigeria_opps, intl_opps)
+        write_email_preview(html, subject, recipients)
+        return True
+
+    result = send_email(nigeria_opps, intl_opps, recipients)
     purge_sent_scoutbot_emails()
+    return result
+
+
+def main():
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    parser = argparse.ArgumentParser(description="ScoutBot weekly email digest")
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Build email_preview.html without sending any email"
+    )
+    args = parser.parse_args()
+    run_notify(dry_run=args.dry_run)
 
 
 if __name__ == "__main__":
