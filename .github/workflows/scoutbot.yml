@@ -1,15 +1,17 @@
-name: ScoutBot — Scrape (Every 6 Hours)
+name: ScoutBot — Scrape (Daily)
 
-# Scrapes all sources and removes expired entries every 6 hours.
+# Scrapes all sources and removes expired entries once per day at 07:00 WAT.
 # Does NOT send the email digest — that runs separately on Sundays only.
-# Running every 6 hours means new opportunities appear in the sheet
-# within 6 hours of being posted on the source site.
 #
-# 4 runs/day × ~15 min each = ~60 min/day → well within GitHub Actions free tier.
+# The spider refuses to add any opportunity whose source post is older than
+# 21 days (MAX_POST_AGE_DAYS), and cleanup.py removes entries that have:
+#   • a deadline that has already passed, OR
+#   • no deadline and were added more than 21 days ago
+# Together these two rules ensure nothing older than 3 weeks ever appears.
 
 on:
   schedule:
-    - cron: '0 3,9,15,21 * * *'   # 04:00, 10:00, 16:00, 22:00 WAT
+    - cron: '0 6 * * *'            # 07:00 WAT every day
   workflow_dispatch:
 
 jobs:
