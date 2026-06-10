@@ -1,0 +1,75 @@
+name: ScoutBot — Diagnostic Scrape
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - run: pip install -r requirements.txt
+
+      - name: Restore service account
+        env:
+          SA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SA_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+        run: |
+          if [ -n "$SA_JSON_B64" ]; then
+            echo "$SA_JSON_B64" | base64 -d > service_account.json
+          else
+            printf '%s' "$SA_JSON" > service_account.json
+          fi
+
+      - name: Build .env
+        run: |
+          cat > .env <<EOF
+          SENDER_EMAIL=${{ secrets.SENDER_EMAIL }}
+          GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
+          SPREADSHEET_ID=${{ secrets.SPREADSHEET_ID }}
+          FORM_SHEET_ID=1dFcnVvQjWkuYhN1rplICTY0j88KgvGqQ3FzYId2ru4s
+          GOOGLE_SERVICE_ACCOUNT_JSON=service_account.json
+          RECIPIENT_EMAILS=kamsirichard1960@gmail.com
+          EOF
+
+      - name: Run spider — dump items to JSON (no sheet writes)
+        run: |
+          # Disable SheetsPipeline so we just see what items the spider finds
+          scrapy crawl opportunities \
+            -s ITEM_PIPELINES='{"scoutbot.pipelines.DedupePipeline": 100}' \
+            -s CLOSESPIDER_ITEMCOUNT=60 \
+            -s LOG_LEVEL=INFO \
+            -o /tmp/items.jsonl 2>&1 | tee scrapy_diag.log
+          echo "--- Items found ---"
+          wc -l /tmp/items.jsonl || echo "No items file"
+          echo "--- Range breakdown ---"
+          python3 -c "
+import json, collections
+items = [json.loads(l) for l in open('/tmp/items.jsonl') if l.strip()]
+by_range = collections.Counter(i.get('range','?') for i in items)
+print(f'Total items: {len(items)}')
+for k,v in by_range.items(): print(f'  {k}: {v}')
+print()
+print('=== Sample National items ===')
+for i in items:
+    if i.get('range') == 'National':
+        print(f"  [{i.get('range')}] {i.get('title','?')[:70]}")
+" || true
+
+      - name: Upload diagnostic items
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostic-items
+          path: |
+            /tmp/items.jsonl
+            scrapy_diag.log
+          if-no-files-found: ignore
+          retention-days: 1
