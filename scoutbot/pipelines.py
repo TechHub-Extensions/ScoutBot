@@ -157,19 +157,44 @@ class SheetsPipeline:
         return item
 
     def close_spider(self, spider=None):
+        nigeria_written = 0
+        intl_written    = 0
+
         if self.nigeria_rows and self.nigeria_ws:
             try:
                 self.nigeria_ws.append_rows(self.nigeria_rows, value_input_option="USER_ENTERED")
-                logger.info(f"SheetsPipeline: {len(self.nigeria_rows)} rows → Nigeria tab.")
+                nigeria_written = len(self.nigeria_rows)
+                logger.info(f"SheetsPipeline: {nigeria_written} rows → Nigeria tab.")
             except Exception as exc:
                 logger.error(f"SheetsPipeline: Nigeria write error — {exc}")
+        elif self.nigeria_rows and not self.nigeria_ws:
+            logger.error(
+                f"SheetsPipeline: {len(self.nigeria_rows)} Nigeria rows ready "
+                "but worksheet handle is None — sheet connection failed in open_spider."
+            )
 
         if self.intl_rows and self.international_ws:
             try:
                 self.international_ws.append_rows(self.intl_rows, value_input_option="USER_ENTERED")
-                logger.info(f"SheetsPipeline: {len(self.intl_rows)} rows → International tab.")
+                intl_written = len(self.intl_rows)
+                logger.info(f"SheetsPipeline: {intl_written} rows → International tab.")
             except Exception as exc:
                 logger.error(f"SheetsPipeline: International write error — {exc}")
+        elif self.intl_rows and not self.international_ws:
+            logger.error(
+                f"SheetsPipeline: {len(self.intl_rows)} International rows ready "
+                "but worksheet handle is None — sheet connection failed in open_spider."
+            )
 
+        logger.info(
+            f"SheetsPipeline SUMMARY: "
+            f"existing={len(self.existing_links)} loaded, "
+            f"nigeria_new={len(self.nigeria_rows)}, intl_new={len(self.intl_rows)}, "
+            f"nigeria_written={nigeria_written}, intl_written={intl_written}."
+        )
         if not self.nigeria_rows and not self.intl_rows:
-            logger.info("SheetsPipeline: No new rows to write.")
+            logger.info(
+                "SheetsPipeline: No new rows — either all items were duplicates "
+                "of the %d existing links, or the spider found nothing new.",
+                len(self.existing_links),
+            )
