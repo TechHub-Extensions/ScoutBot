@@ -4,6 +4,9 @@ on:
   issues:
     types: [opened]
 
+permissions:
+  issues: write   # required — GITHUB_TOKEN defaults to read-only
+
 jobs:
   label:
     runs-on: ubuntu-latest
@@ -12,7 +15,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            github.rest.issues.addLabels({
+            await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo:  context.repo.repo,
               issue_number: context.issue.number,
