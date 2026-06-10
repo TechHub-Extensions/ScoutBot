@@ -6,6 +6,11 @@
 [![GitHub Stars](https://img.shields.io/github/stars/TechHub-Extensions/ScoutBot)](https://github.com/TechHub-Extensions/ScoutBot/stargazers)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![ScoutBot Scrape](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/scoutbot.yml/badge.svg)](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/scoutbot.yml)
+[![Weekly Sunday Digest](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/digest.yml/badge.svg)](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/digest.yml)
+[![Welcome Email](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/welcome.yml/badge.svg)](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/welcome.yml)
+[![Auto Label Issues](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/auto-label.yml/badge.svg)](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/auto-label.yml)
+[![Thank Contributor](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/thank-contributor.yml/badge.svg)](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/thank-contributor.yml)
 
 ---
 
