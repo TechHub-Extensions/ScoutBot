@@ -58,18 +58,18 @@ def run_cleanup():
     cleanup()
 
 
-def run_notify():
+def run_notify(dry_run=False):
     """Read the sheet and email the digest to all subscribers."""
     sys.path.insert(0, SCRIPT_DIR)
-    from notify import main as notify_main
-    notify_main()
+    from notify import run_notify as _run_notify
+    _run_notify(dry_run=dry_run)
 
 
 def full_pipeline():
     logger.info("run.py: === Full pipeline START ===")
     run_all_spiders()
     run_cleanup()
-    run_notify()
+    run_notify(dry_run=False)
     logger.info("run.py: === Full pipeline COMPLETE ===")
 
 
@@ -96,9 +96,10 @@ def run_schedule():
 
 def main():
     parser = argparse.ArgumentParser(description="ScoutBot")
-    parser.add_argument("--scrape", action="store_true", help="Only scrape (update sheet, no email)")
-    parser.add_argument("--cleanup", action="store_true", help="Only remove closed opportunities from the sheet")
-    parser.add_argument("--notify", action="store_true", help="Only send email")
+    parser.add_argument("--scrape",   action="store_true", help="Only scrape (update sheet, no email)")
+    parser.add_argument("--cleanup",  action="store_true", help="Only remove closed opportunities from the sheet")
+    parser.add_argument("--notify",   action="store_true", help="Only send email")
+    parser.add_argument("--dry-run",  action="store_true", help="Build email_preview.html without sending")
     parser.add_argument("--schedule", action="store_true", help="Run on schedule (7AM + 7PM daily)")
     args = parser.parse_args()
 
@@ -106,8 +107,8 @@ def main():
         run_all_spiders()
     elif args.cleanup:
         run_cleanup()
-    elif args.notify:
-        run_notify()
+    elif args.notify or args.dry_run:
+        run_notify(dry_run=args.dry_run)
     elif args.schedule:
         run_schedule()
     else:
