@@ -57,6 +57,8 @@ jobs:
           FORM_SHEET_ID=1dFcnVvQjWkuYhN1rplICTY0j88KgvGqQ3FzYId2ru4s
           GOOGLE_SERVICE_ACCOUNT_JSON=service_account.json
           RECIPIENT_EMAILS=${{ secrets.RECIPIENT_EMAILS }}
+          TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}
           EOF
 
       - name: Send announcement / update email (catches any who missed it mid-week)
@@ -64,6 +66,9 @@ jobs:
 
       - name: Send weekly opportunity digest
         run: python run.py --notify
+
+      - name: Send Telegram digest
+        run: python telegram_notify.py
 
       - name: Upload logs
         if: always()
