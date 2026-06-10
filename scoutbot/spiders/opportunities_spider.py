@@ -118,7 +118,7 @@ CATEGORY_URL_PATTERNS = [
 PAST_YEAR_RE = re.compile(r"\b(202[0-4])\b")
 
 # Only accept posts published within the last 4 days
-MAX_POST_AGE_DAYS = 4
+MAX_POST_AGE_DAYS = 14
 
 # Reddit subreddits (student-focused only)
 REDDIT_SUBREDDITS = [
@@ -466,10 +466,15 @@ class OpportunitiesSpider(scrapy.Spider):
             "article h3.entry-title a::attr(href), "
             ".entry-title a::attr(href), "
             "h2.post-title a::attr(href), "
+            "h3.post-title a::attr(href), "
             "h2.title a::attr(href), "
+            "h3.title a::attr(href), "
             ".post-title a::attr(href), "
+            ".post-header a::attr(href), "
             "article h2 a::attr(href), "
-            "article h3 a::attr(href)"
+            "article h3 a::attr(href), "
+            ".articles-list a.article-link::attr(href), "
+            "main a[href*='/20']::attr(href)"
         ).getall()
 
         for link in article_links:
