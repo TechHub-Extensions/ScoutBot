@@ -499,7 +499,7 @@ def purge_sent_scoutbot_emails():
         logger.warning(f"notify: Could not purge Sent folder — {exc}")
 
 
-def run_notify(dry_run=False):
+def run_notify(dry_run=False, test_to=None):
     nigeria_opps = fetch_recent_from_tab("Nigeria",       limit=25)
     intl_opps    = fetch_recent_from_tab("International", limit=25)
 
@@ -509,7 +509,11 @@ def run_notify(dry_run=False):
     if not nigeria_opps and not intl_opps:
         logger.warning("notify: No recent opportunities; writing empty dry-run preview.")
 
-    recipients = build_recipient_list()
+    if test_to:
+        recipients = [test_to.strip().lower()]
+        logger.info(f"notify: TEST MODE — sending only to {test_to}")
+    else:
+        recipients = build_recipient_list()
 
     if dry_run:
         subject = build_subject(nigeria_opps, intl_opps)
@@ -518,7 +522,8 @@ def run_notify(dry_run=False):
         return True
 
     result = send_email(nigeria_opps, intl_opps, recipients)
-    purge_sent_scoutbot_emails()
+    if not test_to:   # skip IMAP purge in test mode
+        purge_sent_scoutbot_emails()
     return result
 
 
@@ -529,8 +534,12 @@ def main():
         "--dry-run", action="store_true",
         help="Build email_preview.html without sending any email"
     )
+    parser.add_argument(
+        "--to", metavar="EMAIL",
+        help="Test mode: send to this one address only, bypassing the full subscriber list"
+    )
     args = parser.parse_args()
-    run_notify(dry_run=args.dry_run)
+    run_notify(dry_run=args.dry_run, test_to=args.to)
 
 
 if __name__ == "__main__":
