@@ -1,0 +1,131 @@
+name: Thank Contributor
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  thank:
+    if: github.event.pull_request.merged == true && github.event.pull_request.user.login != 'kamsirichard'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Post thank-you comment on PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr     = context.payload.pull_request;
+            const author = pr.user.login;
+            const prNum  = pr.number;
+            const title  = pr.title;
+
+            const body = [
+              `🎉 **Thank you @${author}!**`,
+              ``,
+              `Your PR — _"${title}"_ — has been reviewed, approved, and merged into \`main\`. It is now live in production.`,
+              ``,
+              `Your contribution is credited in [CONTRIBUTORS.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CONTRIBUTORS.md) and visible to everyone who visits the repository.`,
+              ``,
+              `ScoutBot is a free tool built for Nigerian students with zero budget. Every contribution — no matter how small — genuinely moves the project forward. We appreciate you. 🙏`,
+              ``,
+              `— The ScoutBot Team`,
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner:        context.repo.owner,
+              repo:         context.repo.repo,
+              issue_number: prNum,
+              body,
+            });
+
+      - name: Send thank-you email to contributor
+        env:
+          GITHUB_TOKEN:      ${{ secrets.GITHUB_TOKEN }}
+          SENDER_EMAIL:      ${{ secrets.SENDER_EMAIL }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          PR_NUMBER:         ${{ github.event.pull_request.number }}
+          PR_TITLE:          ${{ github.event.pull_request.title }}
+          PR_AUTHOR:         ${{ github.event.pull_request.user.login }}
+          PR_AUTHOR_NAME:    ${{ github.event.pull_request.user.login }}
+          REPO:              ${{ github.repository }}
+        run: |
+          python3 - << 'PYEOF'
+          import os, json, urllib.request, smtplib
+          from email.mime.text import MIMEText
+          from email.mime.multipart import MIMEMultipart
+
+          TOKEN      = os.environ["GITHUB_TOKEN"]
+          SENDER     = os.environ["SENDER_EMAIL"]
+          APP_PW     = os.environ["GMAIL_APP_PASSWORD"]
+          PR_NUMBER  = os.environ["PR_NUMBER"]
+          PR_TITLE   = os.environ["PR_TITLE"]
+          PR_AUTHOR  = os.environ["PR_AUTHOR"]
+          REPO       = os.environ["REPO"]
+
+          def gh(path):
+              req = urllib.request.Request(
+                  f"https://api.github.com{path}",
+                  headers={"Authorization": f"token {TOKEN}",
+                           "Accept": "application/vnd.github.v3+json"})
+              with urllib.request.urlopen(req) as r:
+                  return json.loads(r.read())
+
+          # Get contributor's public email from their GitHub profile
+          profile = gh(f"/users/{PR_AUTHOR}")
+          email   = profile.get("email") or ""
+
+          # Fall back: look through PR commits for a non-noreply email
+          if not email:
+              try:
+                  commits = gh(f"/repos/{REPO}/pulls/{PR_NUMBER}/commits")
+                  for c in commits:
+                      raw = (c.get("commit", {}).get("author") or {}).get("email", "")
+                      if raw and "noreply" not in raw and "github" not in raw.lower():
+                          email = raw
+                          break
+              except Exception:
+                  pass
+
+          if not email:
+              print(f"No email found for @{PR_AUTHOR} — skipping email.")
+              exit(0)
+
+          display_name = profile.get("name") or PR_AUTHOR
+
+          html = f"""
+          <p>Hi {display_name},</p>
+
+          <p>Your pull request — <strong>"{PR_TITLE}"</strong> — has been reviewed, approved, and merged
+          into ScoutBot's main branch. It is now live in production. 🎉</p>
+
+          <p>Your contribution has been added to the project's
+          <a href="https://github.com/{REPO}/blob/main/CONTRIBUTORS.md">CONTRIBUTORS.md</a>
+          and your GitHub profile photo is visible in the contributors section of the README —
+          so anyone who visits the repository can see that you helped build this.</p>
+
+          <p>ScoutBot is a free, open-source tool for Nigerian students — no budget, no corporate backing,
+          just a community of people who want students to find opportunities they deserve.
+          Your work is part of that mission, and we genuinely appreciate it. 🙏</p>
+
+          <p>If you ever want to contribute again, the repo is always open:
+          <a href="https://github.com/{REPO}">github.com/{REPO}</a></p>
+
+          <p>Thank you,<br>
+          <strong>Kamsi Richard Ivanna</strong><br>
+          ScoutBot | TechHub Extensions</p>
+          """
+
+          msg = MIMEMultipart("alternative")
+          msg["Subject"] = f"Your ScoutBot contribution has been merged — thank you! 🙏"
+          msg["From"]    = f"ScoutBot <{SENDER}>"
+          msg["To"]      = email
+
+          msg.attach(MIMEText(html, "html"))
+
+          with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
+              s.login(SENDER, APP_PW)
+              s.sendmail(SENDER, [email], msg.as_string())
+
+          print(f"Thank-you email sent to {email} (@{PR_AUTHOR})")
+          PYEOF

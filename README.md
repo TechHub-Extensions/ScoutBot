@@ -151,10 +151,8 @@ To encode the service account: `base64 -i service_account.json | tr -d '\n'`
 | Name | Email | Role |
 |------|-------|------|
 | **Kamsi Richard Ivanna** | kamsirichard1960@gmail.com | Founder & Project Lead |
-| Tega | tegazion7@gmail.com | Core Team |
 | Ibukun Ojo | adeojoibukun28@gmail.com | Core Team |
 | Success | successolamide46@gmail.com | Core Team |
-| Ayanfe | ayanfeoluwaalalade2000@gmail.com | Core Team |
 
 ---
 
@@ -174,9 +172,33 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full guide.
 
 ---
 
-## Inspired By
+---
 
-[SWElist](https://swelist.com/) — a no-frills daily email digest of software engineering internships. ScoutBot applies the same philosophy to opportunities for Nigerian students.
+## Contributors
+
+Every merged contribution is permanently credited in [CONTRIBUTORS.md](./CONTRIBUTORS.md).
+
+<table>
+  <tr>
+    <td align="center" width="160">
+      <a href="https://github.com/olamidefasogbon">
+        <img src="https://github.com/olamidefasogbon.png" width="64" style="border-radius:50%" /><br/>
+        <b>olamidefasogbon</b>
+      </a><br/>
+      30 PRs — WhatsApp engine,<br/>V2 frontend, link validation
+    </td>
+    <td align="center" width="160">
+      <a href="https://github.com/tsouk88">
+        <img src="https://github.com/tsouk88.png" width="64" style="border-radius:50%" /><br/>
+        <b>tsouk88</b>
+      </a><br/>
+      3 PRs — deadline fixes,<br/>new sources, Telegram module
+    </td>
+  </tr>
+</table>
+
+Want to see your face here? [Open a PR](https://github.com/TechHub-Extensions/ScoutBot/pulls) or [pick an issue](https://github.com/TechHub-Extensions/ScoutBot/issues).
+
 
 ---
 

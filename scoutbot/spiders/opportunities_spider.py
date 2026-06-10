@@ -127,6 +127,58 @@ REDDIT_OPPORTUNITY_KEYWORDS = [
     "research", "exchange", "bursary", "training",
 ]
 
+# Title must contain at least one of these to be treated as a real listing
+REDDIT_TITLE_KEYWORDS = [
+    "scholarship", "fellowship", "internship", "grant", "funded", "funding",
+    "bursary", "bootcamp", "accelerator", "exchange program", "training program",
+    "award", "stipend", "phd program", "masters program", "postdoc",
+    "fully funded", "open application", "call for applications",
+    "now open", "applications open", "apply now",
+]
+
+# Exclude posts whose titles signal advice/question threads, not listings
+REDDIT_ADVICE_WORDS = [
+    "advice", "help", "tips", "question", "experience", "opinion",
+    "lost", "confused", "struggling", "worried", "rant", "venting",
+    "should i", "am i", "will i", "how do", "is it worth",
+]
+
+# ── Direct-apply link helpers ────────────────────────────────────────────────
+
+# Known application/form platform domains — very high confidence apply links
+KNOWN_APPLY_DOMAINS = {
+    "forms.gle", "docs.google.com", "typeform.com", "submittable.com",
+    "fluxx.io", "awardspring.com", "applyyourself.com", "embark.com",
+    "smapply.io", "jotform.com", "wufoo.com", "academicworks.com",
+    "commonapp.org", "ucas.com", "grantinterface.com", "grantrequest.com",
+    "surveygizmo.com", "cognito.forms", "formassembly.com",
+    "scholarshipamerica.org", "scholarships.com", "unigo.com",
+}
+
+# Domains that are never valid apply links
+SKIP_LINK_DOMAINS = {
+    "reddit.com", "redd.it", "imgur.com", "twitter.com", "x.com",
+    "facebook.com", "instagram.com", "youtube.com", "tiktok.com",
+    "t.co", "bit.ly", "ow.ly", "buff.ly",
+}
+
+# Link TEXT that strongly signals a direct apply button
+APPLY_TEXT_KEYWORDS = [
+    "apply now", "apply here", "apply online", "apply for this",
+    "start application", "begin application", "application form",
+    "official website", "official link", "official application",
+    "click here to apply", "click to apply",
+    "register now", "register here",
+    "visit official", "visit website",
+]
+
+# URL path/query patterns that suggest an application page
+APPLY_HREF_PATTERNS = [
+    "apply", "application", "admission", "admissions",
+    "register", "enroll", "signup", "sign-up",
+    "scholarship", "fellowship", "internship", "portal",
+]
+
 
 def is_category_url(url):
     url_lower = url.lower()
@@ -170,6 +222,8 @@ def extract_deadline(text):
         r"apply by[:\s]+([A-Za-z]+ \d{1,2},?\s*\d{4})",
         r"closes?[:\s]+([A-Za-z]+ \d{1,2},?\s*\d{4})",
         r"closing date[:\s]+([A-Za-z]+ \d{1,2},?\s*\d{4})",
+        r"(\d{1,2}(?:st|nd|rd|th)\s+[A-Za-z]+\s+\d{4})",   # "30th June 2025"
+        r"(\d{1,2}/\d{1,2}/\d{4})",                          # "30/06/2025"
         r"(\d{1,2} [A-Za-z]+ \d{4})",
         r"([A-Za-z]+ \d{1,2},?\s*\d{4})",
         r"(\d{1,2}(?:st|nd|rd|th)\s+[A-Za-z]+\s+\d{4})",
@@ -231,39 +285,111 @@ def is_old_post(response):
     return False
 
 
+def _score_link(href, link_text, blog_domain):
+    """
+    Score a hyperlink candidate as a direct application URL.
+    Returns -1 if the link should be skipped entirely; 0+ otherwise (higher = better).
+    """
+    if not href or not href.startswith("http"):
+        return -1
+    parsed = urlparse(href)
+    domain = parsed.netloc.lower().replace("www.", "")
+
+    # Never link back to the same aggregator/blog
+    if domain == blog_domain.lower().replace("www.", ""):
+        return -1
+    # Never link to social media or URL shorteners
+    if any(skip in domain for skip in SKIP_LINK_DOMAINS):
+        return -1
+
+    path_q = (parsed.path + " " + (parsed.query or "")).lower()
+    text_l = link_text.lower().strip()
+
+    score = 0
+    # Highest confidence: known application platform (Google Forms, Typeform, etc.)
+    if any(ap in domain for ap in KNOWN_APPLY_DOMAINS):
+        score += 100
+    # Strong: link text explicitly mentions applying
+    if any(kw in text_l for kw in APPLY_TEXT_KEYWORDS):
+        score += 80
+    elif "apply" in text_l or "official" in text_l or "register" in text_l:
+        score += 50
+    # Medium: apply-related pattern in the URL path
+    if any(p in path_q for p in APPLY_HREF_PATTERNS):
+        score += 40
+    # Bonus: organisation-type domain
+    if any(kw in domain for kw in ["scholarship", "fellow", "intern", "grant", "award"]):
+        score += 20
+    # Any external link is better than falling back to the blog URL
+    if score == 0:
+        score = 1
+
+    return score
+
+
 def extract_direct_apply_link(response):
     """
-    Find the best direct application URL on the page.
-    Prefers links that go to a DIFFERENT domain from the blog/aggregator
-    (i.e., the actual company or program application page).
-    Falls back to any apply-looking link, then to the page URL itself.
+    Walk every anchor on the blog/aggregator page and return the URL most
+    likely to be the organisation's own application page or form.
+
+    Priority:
+      1. Links to known form platforms (Google Forms, Typeform, Submittable…)
+      2. External links whose text says "Apply Now / Official Website / …"
+      3. External links with apply-related href patterns
+      4. Any other external link
+      5. The blog post URL itself (last resort)
     """
     blog_domain = urlparse(response.url).netloc
 
-    # Selectors ordered by specificity
-    candidates = response.css(
-        "a[href*='apply']::attr(href), "
-        "a[href*='application']::attr(href), "
-        "a[href*='admission']::attr(href), "
-        "a[href*='register']::attr(href), "
-        "a[href*='enroll']::attr(href), "
-        "a[href*='portal']::attr(href)"
-    ).getall()
+    scored = []
+    for a in response.xpath("//a[@href]"):
+        href = a.xpath("./@href").get("").strip()
+        text = a.xpath("normalize-space(.)").get("").strip()
+        s = _score_link(href, text, blog_domain)
+        if s >= 0:
+            scored.append((s, href))
 
-    # Filter to absolute HTTP URLs only
-    abs_candidates = [l for l in candidates if l and l.startswith("http")]
+    if scored:
+        scored.sort(key=lambda x: -x[0])
+        best_score, best_href = scored[0]
+        if best_score > 1:          # only use if we found something meaningful
+            return best_href
 
-    # Prefer external (non-blog) domain links — these are the actual org sites
-    external = [l for l in abs_candidates if urlparse(l).netloc != blog_domain]
-    if external:
-        return external[0]
+    return response.url             # fall back to blog post URL
 
-    # Fall back to any absolute apply link
-    if abs_candidates:
-        return abs_candidates[0]
 
-    # Last resort: the page URL itself
-    return response.url
+def _extract_apply_link_from_reddit_html(raw_html, post_url):
+    """
+    Scan the raw HTML body of a Reddit post and return the best external
+    application URL found inside it.  Returns None if nothing suitable found.
+    Reddit posts that share a real opportunity always include the source link.
+    """
+    hrefs = re.findall(r'href=["\']([^"\']+)["\']', raw_html or "", re.IGNORECASE)
+    scored = []
+    for href in hrefs:
+        if not href.startswith("http"):
+            continue
+        if href == post_url:
+            continue
+        parsed = urlparse(href)
+        domain = parsed.netloc.lower().replace("www.", "")
+        if any(skip in domain for skip in SKIP_LINK_DOMAINS):
+            continue
+        path_q = (parsed.path + " " + (parsed.query or "")).lower()
+        score = 0
+        if any(ap in domain for ap in KNOWN_APPLY_DOMAINS):
+            score += 100
+        if any(p in path_q for p in APPLY_HREF_PATTERNS):
+            score += 50
+        if any(kw in domain for kw in ["scholarship", "fellow", "intern", "grant", "award", "opportunity"]):
+            score += 30
+        if score > 0:
+            scored.append((score, href))
+
+    if not scored:
+        return None
+    scored.sort(key=lambda x: -x[0])
+    return scored[0][1]
 
 
 def org_from_url(url):
@@ -291,6 +417,7 @@ class OpportunitiesSpider(scrapy.Spider):
         "https://opportunitydesk.org/category/scholarships/",
         "https://opportunitydesk.org/category/fellowships/",
         "https://opportunitydesk.org/category/internships/",
+        # ── Global programmes open to Africans (added by tsouk88 / PR #43) ─
         "https://yali.state.gov/",
         "https://www.worldbank.org/en/programs/scholarships",
         "https://commonwealthscholarships.ac.uk/applicants/apply/",
@@ -486,6 +613,13 @@ class OpportunitiesSpider(scrapy.Spider):
             if body in ("[removed]", "[deleted]"):
                 body = ""
 
+            title_lower = title.lower()
+            # Must look like an actual listing, not an advice/question thread
+            if not any(kw in title_lower for kw in REDDIT_TITLE_KEYWORDS):
+                continue
+            if any(w in title_lower for w in REDDIT_ADVICE_WORDS):
+                continue
+
             combined = (title + " " + body).lower()
             if not any(kw in combined for kw in REDDIT_OPPORTUNITY_KEYWORDS):
                 continue
@@ -498,7 +632,12 @@ class OpportunitiesSpider(scrapy.Spider):
             if category in EXCLUDED_CATEGORIES:
                 continue
 
-            apply_link = post_url or f"https://www.reddit.com/r/{sub}/"
+            # Require a real external apply link inside the post body —
+            # posts with no link are discussions, not actual listings.
+            apply_link = _extract_apply_link_from_reddit_html(raw, post_url)
+            if not apply_link:
+                continue
+
             industry = infer_industry(combined)
 
             item = OpportunityItem()
