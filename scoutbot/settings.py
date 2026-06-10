@@ -11,8 +11,6 @@ RANDOMIZE_DOWNLOAD_DELAY = True
 DEFAULT_REQUEST_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en",
-    # Reddit requires a descriptive User-Agent or it returns 429/403.
-    # Format: <platform>:<app ID>:<version> (by /u/<dev>)
     "User-Agent": (
         "python:scoutbot.opportunities-aggregator:v1.0 (by /u/scoutbot_ng)"
     ),
@@ -20,6 +18,7 @@ DEFAULT_REQUEST_HEADERS = {
 
 ITEM_PIPELINES = {
     "scoutbot.pipelines.DedupePipeline": 100,
+    "scoutbot.pipelines.GeminiPipeline": 150,
     "scoutbot.pipelines.SheetsPipeline": 200,
 }
 
