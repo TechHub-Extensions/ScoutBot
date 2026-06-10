@@ -79,13 +79,17 @@ EXCLUDED_CATEGORIES = {
 
 RANGE_KEYWORDS_INTL = [
     "international", "study abroad", "global", "worldwide", "overseas",
-    "fulbright", "commonwealth", "uk ", "usa", "europe", "canada", "australia",
-    "fully funded", "full scholarship",
+    "fulbright", "uk ", "usa", "europe", "canada", "australia",
+    # Removed "fully funded" and "full scholarship" — many Nigerian domestic
+    # scholarships are fully funded; these keywords wrongly routed them to International.
     "china", "japan", "korea", "india", "asia", "singapore", "malaysia",
     "indonesia", "thailand", "taiwan", "hong kong", "vietnam", "bangladesh",
     "chinese government", "mext", "kgsp", "iccr", "csc scholarship",
     "adb ", "asian development",
 ]
+
+# If the source URL itself contains "nigeria", force National regardless of content
+NIGERIA_URL_MARKERS = ["nigeria", "/ng/", "naija"]
 
 EDU_KEYWORDS = {
     "PhD": ["phd", "doctorate", "doctoral", "post-doctoral", "postdoctoral"],
@@ -201,7 +205,15 @@ def infer_category(url, text):
     return "Opportunity"
 
 
-def infer_range(text):
+def infer_range(text, source_url=""):
+    """Return 'National' or 'International'.
+
+    Source URL wins if it contains a Nigeria marker — e.g. /tag/nigeria/ —
+    so scraped pages from Nigeria-specific sections always land in Nigeria tab
+    even if their body text mentions 'global' or 'international'.
+    """
+    if any(m in source_url.lower() for m in NIGERIA_URL_MARKERS):
+        return "National"
     text = text.lower()
     if any(kw in text for kw in RANGE_KEYWORDS_INTL):
         return "International"
@@ -428,9 +440,18 @@ class OpportunitiesSpider(scrapy.Spider):
         "https://yali.state.gov/",
         "https://www.worldbank.org/en/programs/scholarships",
         "https://commonwealthscholarships.ac.uk/applicants/apply/",
-        # ── Nigerian portals ───────────────────────────────────────────────
-        "https://scholarshipregion.com/category/nigeria-scholarships/",
-        "https://myschoolng.com/scholarships/",
+        # ── Nigerian portals & Nigeria-tagged aggregator pages ────────────
+        # (scholarshipregion.com/category/ returns 404; myschoolng.com is down)
+        "https://www.opportunitiesforafricans.com/tag/nigeria/",
+        "https://opportunitydesk.org/tag/nigeria/",
+        "https://afterschoolafrica.com/tag/nigeria/",
+        "https://afterschoolafrica.com/?s=nigeria+scholarship",
+        "https://afterschoolafrica.com/?s=nigeria+internship",
+        "https://afterschoolafrica.com/?s=nigeria+fellowship",
+        "https://opportunitydesk.org/?s=nigeria+scholarship",
+        "https://opportunitydesk.org/?s=nigeria+internship",
+        "https://opportunitydesk.org/?s=nigeria+fellowship",
+        "https://www.opportunitiesforafricans.com/?s=nigeria",
         # ── Youth Hub Africa ───────────────────────────────────────────────
         "https://opportunities.youthhubafrica.org/category/scholarships-opportunities/",
         "https://opportunities.youthhubafrica.org/category/fellowships/",
@@ -561,7 +582,7 @@ class OpportunitiesSpider(scrapy.Spider):
         item["title"]            = title
         item["industry"]         = industry
         item["category"]         = category
-        item["range"]            = infer_range(combined)
+        item["range"]            = infer_range(combined, source_url=response.url)
         item["education_level"]  = infer_edu(combined)
         item["organization"]     = org
         item["summary"]          = full_text[:400].strip()
@@ -651,7 +672,7 @@ class OpportunitiesSpider(scrapy.Spider):
             item["title"]            = title
             item["industry"]         = industry
             item["category"]         = category
-            item["range"]            = infer_range(combined)
+            item["range"]            = infer_range(combined, source_url=response.url)
             item["education_level"]  = infer_edu(combined)
             item["organization"]     = f"Reddit r/{sub}"
             item["summary"]          = body[:400].strip() or title
