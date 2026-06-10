@@ -180,19 +180,33 @@ Every merged contribution is permanently credited in [CONTRIBUTORS.md](./CONTRIB
 
 <table>
   <tr>
-    <td align="center" width="160">
+    <td align="center" width="140">
       <a href="https://github.com/olamidefasogbon">
-        <img src="https://github.com/olamidefasogbon.png" width="64" style="border-radius:50%" /><br/>
+        <img src="https://github.com/olamidefasogbon.png" width="60" style="border-radius:50%" /><br/>
         <b>olamidefasogbon</b>
       </a><br/>
       30 PRs — WhatsApp engine,<br/>V2 frontend, link validation
     </td>
-    <td align="center" width="160">
+    <td align="center" width="140">
+      <a href="https://github.com/saurabhhhcodes">
+        <img src="https://github.com/saurabhhhcodes.png" width="60" style="border-radius:50%" /><br/>
+        <b>saurabhhhcodes</b>
+      </a><br/>
+      3 PRs — dry-run, mobile<br/>email, deadline extraction
+    </td>
+    <td align="center" width="140">
       <a href="https://github.com/tsouk88">
-        <img src="https://github.com/tsouk88.png" width="64" style="border-radius:50%" /><br/>
+        <img src="https://github.com/tsouk88.png" width="60" style="border-radius:50%" /><br/>
         <b>tsouk88</b>
       </a><br/>
-      3 PRs — deadline fixes,<br/>new sources, Telegram module
+      4 PRs — new sources,<br/>Telegram, auto-label
+    </td>
+    <td align="center" width="140">
+      <a href="https://github.com/prajjukorban">
+        <img src="https://github.com/prajjukorban.png" width="60" style="border-radius:50%" /><br/>
+        <b>prajjukorban</b>
+      </a><br/>
+      1 PR — deadline<br/>extraction patterns
     </td>
   </tr>
 </table>
