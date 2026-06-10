@@ -91,6 +91,15 @@ RANGE_KEYWORDS_INTL = [
 # If the source URL itself contains "nigeria", force National regardless of content
 NIGERIA_URL_MARKERS = ["nigeria", "/ng/", "naija"]
 
+# Explicit Nigeria signals in opportunity body/title — required to route to Nigeria tab
+NIGERIA_CONTENT_KEYWORDS = [
+    "nigeria", "nigerian", "nigerians",
+    "lagos", "abuja", "kano", "ibadan", "port harcourt",
+    "enugu", "benin city", "kaduna", "owerri", "calabar",
+    "open to nigerians", "for nigerians", "nigerian students",
+    "nigerian citizens", "nigerian applicants", "nigerian youth",
+]
+
 EDU_KEYWORDS = {
     "PhD": ["phd", "doctorate", "doctoral", "post-doctoral", "postdoctoral"],
     "Masters": ["masters", "master's", "msc", "mba", "postgraduate",
@@ -208,16 +217,21 @@ def infer_category(url, text):
 def infer_range(text, source_url=""):
     """Return 'National' or 'International'.
 
-    Source URL wins if it contains a Nigeria marker — e.g. /tag/nigeria/ —
-    so scraped pages from Nigeria-specific sections always land in Nigeria tab
-    even if their body text mentions 'global' or 'international'.
+    Routing priority:
+      1. Source URL contains a Nigeria marker → National
+      2. Text contains explicit international keywords → International
+      3. Text contains explicit Nigeria content keywords → National
+      4. Default → International  (pan-African / country-unspecified stays
+         in International; never spills South Africa / Uganda into Nigeria tab)
     """
     if any(m in source_url.lower() for m in NIGERIA_URL_MARKERS):
         return "National"
     text = text.lower()
     if any(kw in text for kw in RANGE_KEYWORDS_INTL):
         return "International"
-    return "National"
+    if any(kw in text for kw in NIGERIA_CONTENT_KEYWORDS):
+        return "National"
+    return "International"
 
 
 def infer_edu(text):
