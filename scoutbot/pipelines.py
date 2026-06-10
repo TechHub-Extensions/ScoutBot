@@ -1,18 +1,24 @@
 """
 Scrapy pipelines:
   1. DedupePipeline  — drops duplicates (same link seen in this run)
-  2. SheetsPipeline  — writes to separate tabs:
-       "Nigeria"       ← range == "National"
-       "International" ← range == "International"
+  2. GeminiPipeline  — scores each item with Gemini Flash; drops score < 5;
+                       adds ai_blurb field for the email digest
+  3. SheetsPipeline  — writes to separate tabs:
+       "Nigeria"       <- range == "National"
+       "International" <- range == "International"
      Skips links already present in either tab.
-     Adds "Date Added" column (today's date) to every new row.
+     Adds "Date Added" and "AI Blurb" columns to every new row.
 """
 
+import json
 import os
 import logging
+import re
+import urllib.request
 from datetime import date
 from dotenv import load_dotenv
 from scrapy.exceptions import DropItem
+from twisted.internet import defer, threads
 
 load_dotenv()
 
@@ -22,21 +28,22 @@ SPREADSHEET_ID = os.getenv("SPREADSHEET_ID", "1pLCEvDI1btjtOe1H3VgzCqpC6R0nRsEtn
 SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "service_account.json")
 
 SHEET_HEADERS = [
-    "Title",
-    "Industry",
-    "Category",
-    "Range",
-    "Education Level",
-    "Organization",
-    "Summary",
-    "Application Link",
-    "Opening Date",
-    "Deadline",
-    "Status",
-    "Date Added",
+    "Title",           # 0
+    "Industry",        # 1
+    "Category",        # 2
+    "Range",           # 3
+    "Education Level", # 4
+    "Organization",    # 5
+    "Summary",         # 6
+    "Application Link",# 7
+    "Opening Date",    # 8
+    "Deadline",        # 9  <- cleanup.py DEADLINE_COL_INDEX
+    "Status",          # 10 <- cleanup.py STATUS_COL_INDEX
+    "Date Added",      # 11 <- cleanup.py DATE_ADDED_COL_INDEX
+    "AI Blurb",        # 12
 ]
 
-LINK_COL_INDEX = 7   # 0-based index of "Application Link"
+LINK_COL_INDEX = 7
 TAB_NIGERIA       = "Nigeria"
 TAB_INTERNATIONAL = "International"
 
@@ -80,6 +87,99 @@ class DedupePipeline:
         return item
 
 
+class GeminiPipeline:
+    """Score each opportunity with Gemini Flash and add an AI blurb.
+
+    Items scoring below MIN_SCORE are dropped before they reach the sheet.
+    If the API key is missing or an API call fails, the item passes through
+    with an empty blurb so a Gemini outage never silences the daily scrape.
+    """
+
+    GEMINI_URL = (
+        "https://generativelanguage.googleapis.com/v1beta/"
+        "models/gemini-1.5-flash:generateContent"
+    )
+    MIN_SCORE = 5
+
+    @classmethod
+    def from_crawler(cls, crawler):
+        return cls()
+
+    def open_spider(self, spider=None):
+        self.api_key = os.getenv("GEMINI_API_KEY", "")
+        self.enabled = bool(self.api_key)
+        if self.enabled:
+            logger.info("GeminiPipeline: AI scoring enabled.")
+        else:
+            logger.warning("GeminiPipeline: GEMINI_API_KEY not set — AI scoring disabled.")
+
+    @defer.inlineCallbacks
+    def process_item(self, item, spider=None):
+        if not self.enabled:
+            item["ai_blurb"] = ""
+            return item
+        result = yield threads.deferToThread(self._call_gemini, item)
+        return result
+
+    def _call_gemini(self, item):
+        """Blocking Gemini call — run inside deferToThread."""
+        title    = (item.get("title") or "").strip()
+        category = (item.get("category") or "").strip()
+        summary  = (item.get("summary") or "")[:300].strip()
+        deadline = (item.get("deadline") or "").strip()
+
+        prompt = (
+            "You help Nigerian university students discover opportunities.\n\n"
+            "Rate this opportunity 1-10 for relevance to Nigerian students and write "
+            "a punchy 1-2 sentence blurb they can act on immediately.\n"
+            "Rate it 7+ ONLY if it is explicitly open to Nigerians or to Africans broadly, "
+            "currently accepting applications, and is a genuine scholarship, fellowship, "
+            "internship, or training programme.\n\n"
+            f"Title: {title}\n"
+            f"Category: {category}\n"
+            f"Summary: {summary}\n"
+            f"Deadline: {deadline}\n\n"
+            "Respond in JSON only — no markdown, no code fences:\n"
+            '{"score": <1-10>, "blurb": "<1-2 sentence blurb>"}' "
+        )
+
+        try:
+            payload = json.dumps({
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.3, "maxOutputTokens": 120},
+            }).encode()
+            req = urllib.request.Request(
+                f"{self.GEMINI_URL}?key={self.api_key}",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=12) as r:
+                resp = json.loads(r.read())
+
+            raw = resp["candidates"][0]["content"]["parts"][0]["text"]
+            raw = re.sub(r"```[a-z]*\s*|\s*```", "", raw).strip()
+            result = json.loads(raw)
+            score = int(result.get("score", 0))
+            blurb = str(result.get("blurb", "")).strip()
+
+            if score < self.MIN_SCORE:
+                raise DropItem(
+                    f"GeminiPipeline: score={score} (min {self.MIN_SCORE}) — \"{title[:60]}\""
+                )
+
+            item["ai_blurb"] = blurb
+            logger.debug(f"GeminiPipeline: score={score} — {title[:60]}")
+            return item
+
+        except DropItem:
+            raise
+        except Exception as exc:
+            logger.warning(f"GeminiPipeline: API error for \"{title[:60]}\" — {exc}; passing through.")
+            item["ai_blurb"] = ""
+            return item
+
+
 class SheetsPipeline:
     """Routes opportunities to the Nigeria or International tab."""
 
@@ -112,7 +212,6 @@ class SheetsPipeline:
             self.nigeria_ws       = _get_or_create_tab(ss, TAB_NIGERIA)
             self.international_ws = _get_or_create_tab(ss, TAB_INTERNATIONAL)
 
-            # Load existing links from BOTH tabs to prevent cross-tab duplicates
             for ws in (self.nigeria_ws, self.international_ws):
                 rows = ws.get_all_values()
                 for row in rows[1:]:
@@ -145,10 +244,10 @@ class SheetsPipeline:
             (item.get("deadline") or "").strip(),
             (item.get("status") or "Open").strip(),
             today,
+            (item.get("ai_blurb") or "").strip(),
         ]
 
-        opp_range = (item.get("range") or "").strip()
-        if opp_range == "International":
+        if (item.get("range") or "").strip() == "International":
             self.intl_rows.append(row)
         else:
             self.nigeria_rows.append(row)
@@ -164,27 +263,17 @@ class SheetsPipeline:
             try:
                 self.nigeria_ws.append_rows(self.nigeria_rows, value_input_option="USER_ENTERED")
                 nigeria_written = len(self.nigeria_rows)
-                logger.info(f"SheetsPipeline: {nigeria_written} rows → Nigeria tab.")
+                logger.info(f"SheetsPipeline: {nigeria_written} rows -> Nigeria tab.")
             except Exception as exc:
                 logger.error(f"SheetsPipeline: Nigeria write error — {exc}")
-        elif self.nigeria_rows and not self.nigeria_ws:
-            logger.error(
-                f"SheetsPipeline: {len(self.nigeria_rows)} Nigeria rows ready "
-                "but worksheet handle is None — sheet connection failed in open_spider."
-            )
 
         if self.intl_rows and self.international_ws:
             try:
                 self.international_ws.append_rows(self.intl_rows, value_input_option="USER_ENTERED")
                 intl_written = len(self.intl_rows)
-                logger.info(f"SheetsPipeline: {intl_written} rows → International tab.")
+                logger.info(f"SheetsPipeline: {intl_written} rows -> International tab.")
             except Exception as exc:
                 logger.error(f"SheetsPipeline: International write error — {exc}")
-        elif self.intl_rows and not self.international_ws:
-            logger.error(
-                f"SheetsPipeline: {len(self.intl_rows)} International rows ready "
-                "but worksheet handle is None — sheet connection failed in open_spider."
-            )
 
         logger.info(
             f"SheetsPipeline SUMMARY: "
