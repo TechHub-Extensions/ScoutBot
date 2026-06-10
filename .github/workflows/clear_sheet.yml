@@ -1,0 +1,40 @@
+name: Clear Sheet (manual)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  clear:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Restore Google service account JSON
+        env:
+          SA_JSON:     ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SA_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+        run: |
+          if [ -n "$SA_JSON_B64" ]; then
+            echo "$SA_JSON_B64" | base64 -d > service_account.json
+          elif [ -n "$SA_JSON" ]; then
+            printf '%s' "$SA_JSON" > service_account.json
+          else
+            echo "ERROR: No service account secret set" >&2; exit 1
+          fi
+
+      - name: Build .env
+        run: |
+          cat > .env <<EOF
+          SPREADSHEET_ID=${{ secrets.SPREADSHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON=service_account.json
+          EOF
+
+      - name: Clear Nigeria + International tabs
+        run: python clear_sheet.py
