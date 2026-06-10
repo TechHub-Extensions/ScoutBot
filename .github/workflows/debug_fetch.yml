@@ -1,0 +1,27 @@
+name: Debug fetch (one-time)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch listing pages and show article link count
+        run: |
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+          for URL in \
+            "https://afterschoolafrica.com/tag/nigeria/" \
+            "https://opportunitydesk.org/tag/nigeria/" \
+            "https://www.opportunitiesforafricans.com/tag/nigeria/"; do
+            echo "=== $URL ==="
+            HTML=$(curl -sSL -A "$UA" --max-time 15 "$URL" 2>&1)
+            echo "  Size: ${#HTML} chars"
+            echo "  post-title matches: $(echo "$HTML" | grep -o 'post-title' | wc -l)"
+            echo "  entry-title matches: $(echo "$HTML" | grep -o 'entry-title' | wc -l)"
+            echo "  <article> tags: $(echo "$HTML" | grep -o '<article' | wc -l)"
+            echo "  <h2> tags: $(echo "$HTML" | grep -o '<h2' | wc -l)"
+            echo "  challenge/cloudflare: $(echo "$HTML" | grep -oi 'cloudflare\|just a moment\|checking your browser\|DDoS protection' | wc -l)"
+            # Show first h2/h3 with a link
+            echo "$HTML" | grep -o '<h[23][^>]*>.*</h[23]>' | head -3 || true
+          done
