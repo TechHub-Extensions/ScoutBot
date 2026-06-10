@@ -7,8 +7,8 @@ International tabs in Google Sheets.
 A row is removed when ANY of the following are true:
   1. Status column == "Closed"
   2. Deadline is a parseable date that has already passed
-  3. Date Added is > STALE_DAYS old AND deadline is blank/unparseable
-     (catches listings that were never given a deadline and just aged out)
+  3. Date Added is > STALE_DAYS (33) days ago — hard cap applied to every row
+     regardless of deadline, so no entry lingers longer than 33 days
 
 Run standalone:  python cleanup.py
 Or called automatically from run.py after every scrape.
