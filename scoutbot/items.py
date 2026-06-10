@@ -13,3 +13,4 @@ class OpportunityItem(scrapy.Item):
     opening_date = scrapy.Field()
     deadline = scrapy.Field()
     status = scrapy.Field()
+    ai_blurb = scrapy.Field()
