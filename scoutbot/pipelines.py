@@ -14,6 +14,8 @@ import json
 import os
 import logging
 import re
+import threading
+import time
 import urllib.request
 from datetime import date
 from dotenv import load_dotenv
@@ -108,6 +110,8 @@ class GeminiPipeline:
         "models/gemini-2.0-flash:generateContent"
     )
     MIN_SCORE = 5
+    # Free tier allows ~10 RPM; semaphore + delay keeps us safely under that
+    _sem = threading.Semaphore(1)
 
     @classmethod
     def from_crawler(cls, crawler):
@@ -130,7 +134,18 @@ class GeminiPipeline:
         return result
 
     def _call_gemini(self, item):
-        """Blocking Gemini REST call — runs inside deferToThread."""
+        """Blocking Gemini REST call — runs inside deferToThread.
+
+        The class-level semaphore + sleep caps throughput at ~10 RPM so
+        we stay within the Gemini free-tier quota even when many items
+        arrive simultaneously from multiple RSS feeds.
+        """
+        with self._sem:
+            time.sleep(4)          # ~10 RPM safe for free tier
+            return self._call_gemini_inner(item)
+
+    def _call_gemini_inner(self, item):
+        """Inner rate-unlimited call — always invoked inside _sem."""
         title    = (item.get("title")    or "").strip()
         category = (item.get("category") or "").strip()
         summary  = (item.get("summary")  or "")[:300].strip()
