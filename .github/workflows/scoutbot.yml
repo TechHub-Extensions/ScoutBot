@@ -4,10 +4,11 @@ name: ScoutBot — Scrape (Daily)
 # Does NOT send the email digest — that runs separately on Sundays only.
 #
 # The spider refuses to add any opportunity whose source post is older than
-# 21 days (MAX_POST_AGE_DAYS), and cleanup.py removes entries that have:
+# 4 days (MAX_POST_AGE_DAYS), ensuring only fresh listings enter the sheet.
+# cleanup.py then removes entries that have:
 #   • a deadline that has already passed, OR
-#   • no deadline and were added more than 21 days ago
-# Together these two rules ensure nothing older than 3 weeks ever appears.
+#   • been in the sheet for more than 33 days (hard cap, no exceptions)
+# Together these ensure every entry in the sheet is open and current.
 
 on:
   schedule:
@@ -69,7 +70,7 @@ jobs:
           echo "=== scrapy.log (last 120 lines) ==="
           tail -n 120 scrapy.log 2>/dev/null || echo "(no scrapy.log)"
 
-      - name: Clean expired entries (21-day rule)
+      - name: Clean expired entries (33-day cap)
         run: python run.py --cleanup
 
       - name: Upload logs
