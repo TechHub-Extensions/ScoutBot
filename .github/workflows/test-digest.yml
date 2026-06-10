@@ -1,6 +1,7 @@
 name: ScoutBot — Test Digest (Single Recipient)
 
 # Triggered manually only — sends the weekly digest to one address for testing.
+# Uses --to flag so it bypasses the full subscriber list entirely.
 # Delete this file after the test is confirmed.
 
 on:
@@ -36,9 +37,9 @@ jobs:
           else
             echo "ERROR: No service account secret set." >&2; exit 1
           fi
-          python -c "import json; json.load(open('service_account.json')); print('service_account.json valid.')"
+          python -c "import json; json.load(open('service_account.json')); print('Valid.')"
 
-      - name: Build .env for test (single recipient only)
+      - name: Build .env
         run: |
           cat > .env <<EOF
           SENDER_EMAIL=${{ secrets.SENDER_EMAIL }}
@@ -46,11 +47,10 @@ jobs:
           SPREADSHEET_ID=${{ secrets.SPREADSHEET_ID }}
           FORM_SHEET_ID=1dFcnVvQjWkuYhN1rplICTY0j88KgvGqQ3FzYId2ru4s
           GOOGLE_SERVICE_ACCOUNT_JSON=service_account.json
-          RECIPIENT_EMAILS=kamsirichard1960@gmail.com
           EOF
 
-      - name: Send test digest to kamsirichard1960@gmail.com
-        run: python run.py --notify
+      - name: Send test digest to kamsirichard1960@gmail.com only
+        run: python notify.py --to kamsirichard1960@gmail.com
 
       - name: Upload logs
         if: always()
