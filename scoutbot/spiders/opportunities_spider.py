@@ -437,27 +437,35 @@ def org_from_url(url):
 class OpportunitiesSpider(scrapy.Spider):
     name = "opportunities"
 
-    # Nigeria-only sources — tagged/searched pages only.
-    # Scraping general Africa categories is what caused SA/Uganda contamination
-    # and slow (20-min) runs. These 10 URLs are all Nigeria-labelled.
+    # ── Sources that work from GitHub Actions ──────────────────────────────
+    # afterschoolafrica.com + opportunitydesk.org both use Cloudflare and
+    # serve challenge pages to GitHub Actions IPs (confirmed via debug run).
+    # Google News RSS is always accessible, Nigeria-specific, and updated live.
+    # YouthHubAfrica Nigeria tag page has no Cloudflare and works fine.
+
+    # HTML sources — scraped the normal way
     start_urls = [
-        "https://www.opportunitiesforafricans.com/tag/nigeria/",
-        "https://opportunitydesk.org/tag/nigeria/",
-        "https://afterschoolafrica.com/tag/nigeria/",
-        "https://afterschoolafrica.com/?s=nigeria+scholarship",
-        "https://afterschoolafrica.com/?s=nigeria+internship",
-        "https://afterschoolafrica.com/?s=nigeria+fellowship",
-        "https://opportunitydesk.org/?s=nigeria+scholarship",
-        "https://opportunitydesk.org/?s=nigeria+internship",
-        "https://opportunitydesk.org/?s=nigeria+fellowship",
-        "https://www.opportunitiesforafricans.com/?s=nigeria",
+        "https://opportunities.youthhubafrica.org/tag/nigeria/",
     ]
 
-    MAX_PAGES = 1  # No pagination — page 1 only keeps runs under 5 minutes
+    # Google News RSS queries — parsed directly from XML, no Cloudflare issues
+    GOOGLE_NEWS_RSS_URLS = [
+        "https://news.google.com/rss/search?q=nigeria+scholarship+2026&hl=en-NG&gl=NG&ceid=NG:en",
+        "https://news.google.com/rss/search?q=nigeria+fellowship+2026&hl=en-NG&gl=NG&ceid=NG:en",
+        "https://news.google.com/rss/search?q=nigeria+internship+2026&hl=en-NG&gl=NG&ceid=NG:en",
+        "https://news.google.com/rss/search?q=nigeria+bootcamp+OR+training+2026&hl=en-NG&gl=NG&ceid=NG:en",
+    ]
+
+    MAX_PAGES = 1  # No pagination — keeps runs fast
 
     def start_requests(self):
         for url in self.start_urls:
             yield scrapy.Request(url, callback=self.parse)
+        for url in self.GOOGLE_NEWS_RSS_URLS:
+            yield scrapy.Request(
+                url, callback=self.parse_google_news_rss,
+                headers={"Accept": "application/rss+xml, application/xml, text/xml"},
+            )
 
     def parse(self, response):
         """Parse a listing page and follow links to individual opportunity pages."""
@@ -559,6 +567,96 @@ class OpportunitiesSpider(scrapy.Spider):
         item["status"]           = "Open"
 
         yield item
+
+
+    def parse_google_news_rss(self, response):
+        """Parse Google News RSS — extract items directly from XML, no HTML scraping.
+
+        These items are already Nigeria-specific (query contains 'nigeria').
+        We don't follow the article link to avoid Cloudflare-blocked destinations;
+        the Google News redirect URL works fine when a user clicks it.
+        """
+        import xml.etree.ElementTree as ET
+
+        try:
+            root = ET.fromstring(response.text)
+        except Exception as exc:
+            self.logger.warning(f"Google News RSS parse failed — {exc}")
+            return
+
+        channel = root.find("channel")
+        if channel is None:
+            return
+
+        cutoff = date.today() - timedelta(days=MAX_POST_AGE_DAYS)
+        kept = 0
+
+        for entry in channel.findall("item"):
+            title = (entry.findtext("title") or "").strip()
+            if not title:
+                continue
+
+            # Drop past-year titles
+            ym = PAST_YEAR_RE.search(title)
+            if ym and int(ym.group(1)) < date.today().year:
+                continue
+
+            pub_date = entry.findtext("pubDate") or ""
+            if pub_date and HAS_DATEUTIL:
+                try:
+                    pub = dateutil_parse(pub_date, fuzzy=True).date()
+                    if pub < cutoff:
+                        continue
+                except Exception:
+                    pass
+
+            # Title must look like an actual opportunity listing
+            title_lower = title.lower()
+            if not any(kw in title_lower for kw in [
+                "scholarship", "fellowship", "internship", "bootcamp",
+                "training", "award", "programme", "program",
+                "application", "apply", "funded", "grant", "bursary",
+            ]):
+                continue
+
+            link    = entry.findtext("link") or ""
+            desc_el = entry.find("description")
+            desc    = (desc_el.text or "") if desc_el is not None else ""
+            # Strip HTML tags from description
+            desc    = re.sub(r"<[^>]+>", " ", desc)
+            desc    = re.sub(r"\s+", " ", desc).strip()
+
+            source_el  = entry.find("source")
+            source_txt = source_el.text if source_el is not None else ""
+            source_url = source_el.get("url", "") if source_el is not None else link
+
+            combined = title + " " + desc
+
+            deadline_str = extract_deadline(combined)
+            if is_expired(deadline_str, title):
+                continue
+
+            category = infer_category(link, combined)
+            if category in EXCLUDED_CATEGORIES:
+                continue
+
+            item = OpportunityItem()
+            item["title"]            = title
+            item["industry"]         = infer_industry(combined)
+            item["category"]         = category
+            item["range"]            = "National"   # RSS query is Nigeria-specific
+            item["education_level"]  = infer_edu(combined)
+            item["organization"]     = source_txt or "Google News"
+            item["summary"]          = desc[:400] or title
+            item["application_link"] = link or source_url
+            item["opening_date"]     = ""
+            item["deadline"]         = deadline_str
+            item["status"]           = "Open"
+
+            kept += 1
+            yield item
+
+        self.logger.info(f"Google News RSS ({response.url[-40:]}): {kept} kept.")
 
     def parse_reddit_rss(self, response):
         """Parse Reddit's public Atom RSS feed for a subreddit."""
