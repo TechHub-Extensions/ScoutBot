@@ -31,7 +31,7 @@ DEADLINE_COL_INDEX   = 9   # 0-based
 STATUS_COL_INDEX     = 10  # 0-based
 DATE_ADDED_COL_INDEX = 11  # 0-based — new column
 
-STALE_DAYS = 21   # entries without a deadline are removed after 3 weeks
+STALE_DAYS = 33   # hard cap — every entry is removed 33 days after being added
 
 NON_DATE_MARKERS = {
     "ongoing", "rolling", "open", "tbd", "tba",
@@ -70,20 +70,24 @@ def cleanup_worksheet(ws, today):
 
         should_delete = False
 
+        # Rule 1: explicitly closed
         if status_text == "closed":
             should_delete = True
-        else:
+
+        # Rule 2: deadline has already passed
+        if not should_delete:
             deadline_date = parse_deadline(deadline_text)
             if deadline_date and deadline_date < today:
                 should_delete = True
-            elif not deadline_date and date_added:
-                # No deadline — delete if it has aged past STALE_DAYS
-                try:
-                    added = date.fromisoformat(date_added)
-                    if added < stale_cutoff:
-                        should_delete = True
-                except Exception:
-                    pass
+
+        # Rule 3: hard 33-day cap — remove regardless of deadline
+        if not should_delete and date_added:
+            try:
+                added = date.fromisoformat(date_added)
+                if added < stale_cutoff:
+                    should_delete = True
+            except Exception:
+                pass
 
         if should_delete:
             rows_to_delete.append(idx)
