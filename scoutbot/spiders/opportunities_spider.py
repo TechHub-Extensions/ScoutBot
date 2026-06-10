@@ -518,7 +518,7 @@ class OpportunitiesSpider(scrapy.Spider):
             ym = PAST_YEAR_RE.search(link)
             if ym and int(ym.group(1)) < date.today().year:
                 continue
-            yield response.follow(link, self.parse_opportunity)
+            yield response.follow(link, self.parse_opportunity, meta={'listing_url': response.url})
 
         # Pagination — not for search URLs, and capped at MAX_PAGES
         if "?s=" not in response.url:
@@ -582,7 +582,7 @@ class OpportunitiesSpider(scrapy.Spider):
         item["title"]            = title
         item["industry"]         = industry
         item["category"]         = category
-        item["range"]            = infer_range(combined, source_url=response.url)
+        item["range"]            = infer_range(combined, source_url=response.meta.get("listing_url", response.url))
         item["education_level"]  = infer_edu(combined)
         item["organization"]     = org
         item["summary"]          = full_text[:400].strip()
@@ -672,7 +672,7 @@ class OpportunitiesSpider(scrapy.Spider):
             item["title"]            = title
             item["industry"]         = industry
             item["category"]         = category
-            item["range"]            = infer_range(combined, source_url=response.url)
+            item["range"]            = infer_range(combined, source_url=response.meta.get("listing_url", response.url))
             item["education_level"]  = infer_edu(combined)
             item["organization"]     = f"Reddit r/{sub}"
             item["summary"]          = body[:400].strip() or title
