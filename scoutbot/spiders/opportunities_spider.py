@@ -108,8 +108,8 @@ CATEGORY_URL_PATTERNS = [
 
 PAST_YEAR_RE = re.compile(r"\b(202[0-4])\b")
 
-# Maximum age of a scraped post before we skip it (days)
-MAX_POST_AGE_DAYS = 33
+# Only accept posts published within the last 4 days
+MAX_POST_AGE_DAYS = 4
 
 # Reddit subreddits (student-focused only)
 REDDIT_SUBREDDITS = [
