@@ -6,16 +6,16 @@ apprenticeships for Nigerian students. Startup/accelerator/VC content
 is intentionally excluded.
 
 Sources:
-  - International aggregators (scholars4dev, opportunitydesk, etc.)
-  - Nigerian portals (scholarshipregion, myschoolng)
-  - Asia-specific scholarship pages
-  - Reddit RSS feeds (scholarships, internships, gradadmissions, etc.)
+  - International aggregators (scholars4dev, opportunitydesk, etc.) via Google News RSS
+  - Nigerian portals via Google News RSS
+  - YouthHubAfrica Nigeria tag page (direct HTML scrape)
 
 Quality rules:
   - application_link is the DIRECT apply URL on the org/company site,
-    not the blog post URL
-  - Posts older than 30 days are skipped at parse time
+    not the blog post or Google News redirect URL
+  - Posts older than MAX_POST_AGE_DAYS days are skipped at parse time
   - Deadlines already past are dropped immediately
+  - Items with no findable direct apply link are dropped (require_apply_link=True)
   - Past-year titles are dropped at the URL-scan stage
 """
 
@@ -80,8 +80,6 @@ EXCLUDED_CATEGORIES = {
 RANGE_KEYWORDS_INTL = [
     "international", "study abroad", "global", "worldwide", "overseas",
     "fulbright", "uk ", "usa", "europe", "canada", "australia",
-    # Removed "fully funded" and "full scholarship" — many Nigerian domestic
-    # scholarships are fully funded; these keywords wrongly routed them to International.
     "china", "japan", "korea", "india", "asia", "singapore", "malaysia",
     "indonesia", "thailand", "taiwan", "hong kong", "vietnam", "bangladesh",
     "chinese government", "mext", "kgsp", "iccr", "csc scholarship",
@@ -91,7 +89,7 @@ RANGE_KEYWORDS_INTL = [
 # If the source URL itself contains "nigeria", force National regardless of content
 NIGERIA_URL_MARKERS = ["nigeria", "/ng/", "naija"]
 
-# Explicit Nigeria signals in opportunity body/title — required to route to Nigeria tab
+# Explicit Nigeria signals in opportunity body/title
 NIGERIA_CONTENT_KEYWORDS = [
     "nigeria", "nigerian", "nigerians",
     "lagos", "abuja", "kano", "ibadan", "port harcourt",
@@ -117,19 +115,13 @@ CATEGORY_URL_PATTERNS = [
 
 PAST_YEAR_RE = re.compile(r"\b(202[0-4])\b")
 
-# Only accept posts published within the last 4 days
+# Only accept posts published within the last N days
 MAX_POST_AGE_DAYS = 3
 
-# Reddit subreddits (student-focused only)
+# Reddit subreddits (kept for future use)
 REDDIT_SUBREDDITS = [
-    "scholarships",
-    "Internships",
-    "gradadmissions",
-    "studyabroad",
-    "opportunities",
-    "Nigeria",
-    "Africa",
-    "phd",
+    "scholarships", "Internships", "gradadmissions",
+    "studyabroad", "opportunities", "Nigeria", "Africa", "phd",
 ]
 
 REDDIT_OPPORTUNITY_KEYWORDS = [
@@ -140,7 +132,6 @@ REDDIT_OPPORTUNITY_KEYWORDS = [
     "research", "exchange", "bursary", "training",
 ]
 
-# Title must contain at least one of these to be treated as a real listing
 REDDIT_TITLE_KEYWORDS = [
     "scholarship", "fellowship", "internship", "grant", "funded", "funding",
     "bursary", "bootcamp", "accelerator", "exchange program", "training program",
@@ -149,7 +140,6 @@ REDDIT_TITLE_KEYWORDS = [
     "now open", "applications open", "apply now",
 ]
 
-# Exclude posts whose titles signal advice/question threads, not listings
 REDDIT_ADVICE_WORDS = [
     "advice", "help", "tips", "question", "experience", "opinion",
     "lost", "confused", "struggling", "worried", "rant", "venting",
@@ -158,7 +148,6 @@ REDDIT_ADVICE_WORDS = [
 
 # ── Direct-apply link helpers ────────────────────────────────────────────────
 
-# Known application/form platform domains — very high confidence apply links
 KNOWN_APPLY_DOMAINS = {
     "forms.gle", "docs.google.com", "typeform.com", "submittable.com",
     "fluxx.io", "awardspring.com", "applyyourself.com", "embark.com",
@@ -168,14 +157,12 @@ KNOWN_APPLY_DOMAINS = {
     "scholarshipamerica.org", "scholarships.com", "unigo.com",
 }
 
-# Domains that are never valid apply links
 SKIP_LINK_DOMAINS = {
     "reddit.com", "redd.it", "imgur.com", "twitter.com", "x.com",
     "facebook.com", "instagram.com", "youtube.com", "tiktok.com",
     "t.co", "bit.ly", "ow.ly", "buff.ly",
 }
 
-# Link TEXT that strongly signals a direct apply button
 APPLY_TEXT_KEYWORDS = [
     "apply now", "apply here", "apply online", "apply for this",
     "start application", "begin application", "application form",
@@ -185,7 +172,6 @@ APPLY_TEXT_KEYWORDS = [
     "visit official", "visit website",
 ]
 
-# URL path/query patterns that suggest an application page
 APPLY_HREF_PATTERNS = [
     "apply", "application", "admission", "admissions",
     "register", "enroll", "signup", "sign-up",
@@ -215,15 +201,6 @@ def infer_category(url, text):
 
 
 def infer_range(text, source_url=""):
-    """Return 'National' or 'International'.
-
-    Routing priority:
-      1. Source URL contains a Nigeria marker → National
-      2. Text contains explicit international keywords → International
-      3. Text contains explicit Nigeria content keywords → National
-      4. Default → International  (pan-African / country-unspecified stays
-         in International; never spills South Africa / Uganda into Nigeria tab)
-    """
     if any(m in source_url.lower() for m in NIGERIA_URL_MARKERS):
         return "National"
     text = text.lower()
@@ -272,7 +249,6 @@ def extract_deadline(text):
 
 
 def is_expired(deadline_str, title=""):
-    """Return True if the opportunity is clearly in the past."""
     today = date.today()
     if title:
         for m in PAST_YEAR_RE.finditer(title):
@@ -288,11 +264,9 @@ def is_expired(deadline_str, title=""):
 
 
 def is_old_post(response):
-    """Return True if the page is clearly more than MAX_POST_AGE_DAYS old."""
     today = date.today()
     cutoff = today - timedelta(days=MAX_POST_AGE_DAYS)
 
-    # 1. Check <time datetime="..."> tag
     pub_date_str = response.css(
         "time[datetime]::attr(datetime), "
         "meta[property='article:published_time']::attr(content)"
@@ -305,7 +279,6 @@ def is_old_post(response):
         except Exception:
             pass
 
-    # 2. Check URL date pattern — e.g. /2025/03/ or /2024/11/
     url_date = re.search(r"/(\d{4})/(\d{2})/", response.url)
     if url_date:
         try:
@@ -319,19 +292,13 @@ def is_old_post(response):
 
 
 def _score_link(href, link_text, blog_domain):
-    """
-    Score a hyperlink candidate as a direct application URL.
-    Returns -1 if the link should be skipped entirely; 0+ otherwise (higher = better).
-    """
     if not href or not href.startswith("http"):
         return -1
     parsed = urlparse(href)
     domain = parsed.netloc.lower().replace("www.", "")
 
-    # Never link back to the same aggregator/blog
     if domain == blog_domain.lower().replace("www.", ""):
         return -1
-    # Never link to social media or URL shorteners
     if any(skip in domain for skip in SKIP_LINK_DOMAINS):
         return -1
 
@@ -339,21 +306,16 @@ def _score_link(href, link_text, blog_domain):
     text_l = link_text.lower().strip()
 
     score = 0
-    # Highest confidence: known application platform (Google Forms, Typeform, etc.)
     if any(ap in domain for ap in KNOWN_APPLY_DOMAINS):
         score += 100
-    # Strong: link text explicitly mentions applying
     if any(kw in text_l for kw in APPLY_TEXT_KEYWORDS):
         score += 80
     elif "apply" in text_l or "official" in text_l or "register" in text_l:
         score += 50
-    # Medium: apply-related pattern in the URL path
     if any(p in path_q for p in APPLY_HREF_PATTERNS):
         score += 40
-    # Bonus: organisation-type domain
     if any(kw in domain for kw in ["scholarship", "fellow", "intern", "grant", "award"]):
         score += 20
-    # Any external link is better than falling back to the blog URL
     if score == 0:
         score = 1
 
@@ -362,15 +324,11 @@ def _score_link(href, link_text, blog_domain):
 
 def extract_direct_apply_link(response):
     """
-    Walk every anchor on the blog/aggregator page and return the URL most
-    likely to be the organisation's own application page or form.
+    Walk every anchor on the page and return the URL most likely to be the
+    organisation's own application page or form.
 
-    Priority:
-      1. Links to known form platforms (Google Forms, Typeform, Submittable…)
-      2. External links whose text says "Apply Now / Official Website / …"
-      3. External links with apply-related href patterns
-      4. Any other external link
-      5. The blog post URL itself (last resort)
+    Returns (link, found) where found=True means a real apply link was located;
+    found=False means we could only fall back to the page URL itself.
     """
     blog_domain = urlparse(response.url).netloc
 
@@ -385,18 +343,13 @@ def extract_direct_apply_link(response):
     if scored:
         scored.sort(key=lambda x: -x[0])
         best_score, best_href = scored[0]
-        if best_score > 1:          # only use if we found something meaningful
-            return best_href
+        if best_score > 1:
+            return best_href, True
 
-    return response.url             # fall back to blog post URL
+    return response.url, False
 
 
 def _extract_apply_link_from_reddit_html(raw_html, post_url):
-    """
-    Scan the raw HTML body of a Reddit post and return the best external
-    application URL found inside it.  Returns None if nothing suitable found.
-    Reddit posts that share a real opportunity always include the source link.
-    """
     hrefs = re.findall(r'href=["\']([^"\']+)["\']', raw_html or "", re.IGNORECASE)
     scored = []
     for href in hrefs:
@@ -437,18 +390,12 @@ def org_from_url(url):
 class OpportunitiesSpider(scrapy.Spider):
     name = "opportunities"
 
-    # ── Sources that work from GitHub Actions ──────────────────────────────
-    # afterschoolafrica.com + opportunitydesk.org both use Cloudflare and
-    # serve challenge pages to GitHub Actions IPs (confirmed via debug run).
-    # Google News RSS is always accessible, Nigeria-specific, and updated live.
-    # YouthHubAfrica Nigeria tag page has no Cloudflare and works fine.
-
-    # HTML sources — scraped the normal way
+    # HTML sources — scraped the normal way (article URL itself may be the apply page)
     start_urls = [
         "https://opportunities.youthhubafrica.org/tag/nigeria/",
     ]
 
-    # Google News RSS — Nigeria-specific opportunities (routed to Nigeria tab)
+    # Google News RSS — Nigeria-specific (routed to Nigeria tab)
     GOOGLE_NEWS_RSS_NIGERIA = [
         "https://news.google.com/rss/search?q=nigeria+scholarship+2026&hl=en-NG&gl=NG&ceid=NG:en",
         "https://news.google.com/rss/search?q=nigeria+fellowship+2026&hl=en-NG&gl=NG&ceid=NG:en",
@@ -456,8 +403,7 @@ class OpportunitiesSpider(scrapy.Spider):
         "https://news.google.com/rss/search?q=nigeria+bootcamp+OR+training+2026&hl=en-NG&gl=NG&ceid=NG:en",
     ]
 
-    # Google News RSS — International opportunities open to Nigerians/Africans
-    # (Commonwealth, UK, UN, World Bank — routed to International tab)
+    # Google News RSS — International (routed to International tab)
     GOOGLE_NEWS_RSS_INTL = [
         "https://news.google.com/rss/search?q=commonwealth+scholarship+2026+Nigeria&hl=en&gl=US&ceid=US:en",
         "https://news.google.com/rss/search?q=UK+scholarship+Nigeria+2026&hl=en&gl=GB&ceid=GB:en",
@@ -465,19 +411,17 @@ class OpportunitiesSpider(scrapy.Spider):
         "https://news.google.com/rss/search?q=world+bank+OR+UN+fellowship+Africa+2026&hl=en&gl=US&ceid=US:en",
     ]
 
-    MAX_PAGES = 1  # No pagination — keeps runs fast
+    MAX_PAGES = 1
 
     def start_requests(self):
         for url in self.start_urls:
             yield scrapy.Request(url, callback=self.parse)
-        # Nigeria-specific feeds → forced to National tab
         for url in self.GOOGLE_NEWS_RSS_NIGERIA:
             yield scrapy.Request(
                 url, callback=self.parse_google_news_rss,
                 headers={"Accept": "application/rss+xml, application/xml, text/xml"},
                 meta={"forced_range": "National"},
             )
-        # International feeds → forced to International tab
         for url in self.GOOGLE_NEWS_RSS_INTL:
             yield scrapy.Request(
                 url, callback=self.parse_google_news_rss,
@@ -507,13 +451,16 @@ class OpportunitiesSpider(scrapy.Spider):
             link = link.strip()
             if not link or not link.startswith("http") or is_category_url(link):
                 continue
-            # Pre-filter: skip if the URL contains a past year
             ym = PAST_YEAR_RE.search(link)
             if ym and int(ym.group(1)) < date.today().year:
                 continue
-            yield response.follow(link, self.parse_opportunity, meta={'listing_url': response.url})
+            # HTML start_url articles: the page itself may be the apply page, so
+            # we do NOT require an external apply link (require_apply_link=False)
+            yield response.follow(
+                link, self.parse_opportunity,
+                meta={"listing_url": response.url, "require_apply_link": False},
+            )
 
-        # Pagination — not for search URLs, and capped at MAX_PAGES
         if "?s=" not in response.url:
             current_page = int(response.meta.get("page", 1))
             if current_page < self.MAX_PAGES:
@@ -529,20 +476,21 @@ class OpportunitiesSpider(scrapy.Spider):
                     )
 
     def parse_opportunity(self, response):
-        """Parse an individual opportunity page."""
+        """Parse an individual opportunity page and emit an item."""
 
-        # Skip old pages immediately
         if is_old_post(response):
             return
 
+        # Use RSS title as fallback if h1 not present on the article page
+        rss_title = response.meta.get("rss_title", "")
         title = (
             response.css("h1.entry-title::text, h1.post-title::text, h1::text").get("").strip()
             or response.css("title::text").get("").strip()
+            or rss_title
         )
         if not title:
             return
 
-        # Drop past-year titles
         ym = PAST_YEAR_RE.search(title)
         if ym and int(ym.group(1)) < date.today().year:
             return
@@ -556,26 +504,41 @@ class OpportunitiesSpider(scrapy.Spider):
         if is_expired(deadline_str, title):
             return
 
-        # Infer category and drop startup/funding content
         category = infer_category(response.url, combined)
         if category in EXCLUDED_CATEGORIES:
             return
 
-        # ── KEY FIX: use the direct apply URL, not the blog post URL ──────
-        apply_link = extract_direct_apply_link(response)
+        # Extract the direct apply link.
+        # For Google News RSS articles (require_apply_link=True): drop if none found.
+        # For HTML start_url articles (require_apply_link=False): fall back to page URL.
+        apply_link, found = extract_direct_apply_link(response)
+        if not found and response.meta.get("require_apply_link", False):
+            self.logger.debug(
+                "parse_opportunity: no direct apply link on %s — dropped (require_apply_link)",
+                response.url,
+            )
+            return
+
+        # Respect forced_range set by the RSS parser; fall back to inference
+        forced_range = response.meta.get("forced_range")
+        if forced_range:
+            range_val = forced_range
+        else:
+            range_val = infer_range(
+                combined,
+                source_url=response.meta.get("listing_url", response.url),
+            )
 
         org = (
             response.css("meta[property='og:site_name']::attr(content)").get("")
             or org_from_url(response.url)
         )
 
-        industry = infer_industry(combined)
-
         item = OpportunityItem()
         item["title"]            = title
-        item["industry"]         = industry
+        item["industry"]         = infer_industry(combined)
         item["category"]         = category
-        item["range"]            = infer_range(combined, source_url=response.meta.get("listing_url", response.url))
+        item["range"]            = range_val
         item["education_level"]  = infer_edu(combined)
         item["organization"]     = org
         item["summary"]          = full_text[:400].strip()
@@ -586,20 +549,23 @@ class OpportunitiesSpider(scrapy.Spider):
 
         yield item
 
-
     def parse_google_news_rss(self, response):
-        """Parse Google News RSS — extract items directly from XML, no HTML scraping.
+        """Parse Google News RSS feed.
 
-        These items are already Nigeria-specific (query contains 'nigeria').
-        We don't follow the article link to avoid Cloudflare-blocked destinations;
-        the Google News redirect URL works fine when a user clicks it.
+        Pre-filters items by title keywords and post age. For each item that
+        passes pre-filtering, follows the article URL so parse_opportunity can
+        extract a real, direct application link from the article page itself.
+
+        Items on Cloudflare-protected sites will fail to load and are dropped
+        automatically. Items whose article pages contain no findable apply link
+        are also dropped (require_apply_link=True).
         """
         import xml.etree.ElementTree as ET
 
         try:
             root = ET.fromstring(response.text)
         except Exception as exc:
-            self.logger.warning(f"Google News RSS parse failed — {exc}")
+            self.logger.warning("Google News RSS parse failed — %s", exc)
             return
 
         channel = root.find("channel")
@@ -607,7 +573,7 @@ class OpportunitiesSpider(scrapy.Spider):
             return
 
         cutoff = date.today() - timedelta(days=MAX_POST_AGE_DAYS)
-        kept = 0
+        queued = 0
 
         for entry in channel.findall("item"):
             title = (entry.findtext("title") or "").strip()
@@ -619,6 +585,7 @@ class OpportunitiesSpider(scrapy.Spider):
             if ym and int(ym.group(1)) < date.today().year:
                 continue
 
+            # Drop if too old
             pub_date = entry.findtext("pubDate") or ""
             if pub_date and HAS_DATEUTIL:
                 try:
@@ -628,7 +595,7 @@ class OpportunitiesSpider(scrapy.Spider):
                 except Exception:
                     pass
 
-            # Title must look like an actual opportunity listing
+            # Title must look like a real opportunity listing
             title_lower = title.lower()
             if not any(kw in title_lower for kw in [
                 "scholarship", "fellowship", "internship", "bootcamp",
@@ -637,44 +604,41 @@ class OpportunitiesSpider(scrapy.Spider):
             ]):
                 continue
 
-            link    = entry.findtext("link") or ""
-            desc_el = entry.find("description")
-            desc    = (desc_el.text or "") if desc_el is not None else ""
-            # Strip HTML tags from description
-            desc    = re.sub(r"<[^>]+>", " ", desc)
-            desc    = re.sub(r"\s+", " ", desc).strip()
-
-            source_el  = entry.find("source")
-            source_txt = source_el.text if source_el is not None else ""
-            source_url = source_el.get("url", "") if source_el is not None else link
-
-            combined = title + " " + desc
-
-            deadline_str = extract_deadline(combined)
-            if is_expired(deadline_str, title):
+            # Drop if deadline already passed (title-level check only)
+            if is_expired("", title):
                 continue
 
-            category = infer_category(link, combined)
-            if category in EXCLUDED_CATEGORIES:
+            link = entry.findtext("link") or ""
+            if not link:
                 continue
 
-            item = OpportunityItem()
-            item["title"]            = title
-            item["industry"]         = infer_industry(combined)
-            item["category"]         = category
-            item["range"]            = response.meta.get("forced_range", "National")
-            item["education_level"]  = infer_edu(combined)
-            item["organization"]     = source_txt or "Google News"
-            item["summary"]          = desc[:400] or title
-            item["application_link"] = link or source_url
-            item["opening_date"]     = ""
-            item["deadline"]         = deadline_str
-            item["status"]           = "Open"
+            # Follow the actual article URL so we can extract a direct apply link.
+            # require_apply_link=True: drop if no external apply link found on the page.
+            yield scrapy.Request(
+                link,
+                callback=self.parse_opportunity,
+                errback=self.log_skipped,
+                meta={
+                    "forced_range": response.meta.get("forced_range", "National"),
+                    "require_apply_link": True,
+                    "rss_title": title,
+                },
+                dont_filter=False,
+            )
+            queued += 1
 
-            kept += 1
-            yield item
+        self.logger.info(
+            "Google News RSS (%s…): %d items queued for article fetch.",
+            response.url[-50:], queued,
+        )
 
-        self.logger.info(f"Google News RSS ({response.url[-40:]}): {kept} kept.")
+    def log_skipped(self, failure):
+        """Errback for RSS article requests — logs and silently drops."""
+        self.logger.debug(
+            "RSS article fetch failed (%s): %s — item dropped.",
+            failure.value.__class__.__name__,
+            failure.request.url[-80:],
+        )
 
     def parse_reddit_rss(self, response):
         """Parse Reddit's public Atom RSS feed for a subreddit."""
@@ -684,7 +648,7 @@ class OpportunitiesSpider(scrapy.Spider):
         try:
             root = ET.fromstring(response.text)
         except Exception as exc:
-            self.logger.warning(f"Reddit r/{sub}: RSS parse failed — {exc}")
+            self.logger.warning("Reddit r/%s: RSS parse failed — %s", sub, exc)
             return
 
         ns = {"atom": "http://www.w3.org/2005/Atom"}
@@ -725,7 +689,6 @@ class OpportunitiesSpider(scrapy.Spider):
                 body = ""
 
             title_lower = title.lower()
-            # Must look like an actual listing, not an advice/question thread
             if not any(kw in title_lower for kw in REDDIT_TITLE_KEYWORDS):
                 continue
             if any(w in title_lower for w in REDDIT_ADVICE_WORDS):
@@ -743,17 +706,13 @@ class OpportunitiesSpider(scrapy.Spider):
             if category in EXCLUDED_CATEGORIES:
                 continue
 
-            # Require a real external apply link inside the post body —
-            # posts with no link are discussions, not actual listings.
             apply_link = _extract_apply_link_from_reddit_html(raw, post_url)
             if not apply_link:
                 continue
 
-            industry = infer_industry(combined)
-
             item = OpportunityItem()
             item["title"]            = title
-            item["industry"]         = industry
+            item["industry"]         = infer_industry(combined)
             item["category"]         = category
             item["range"]            = infer_range(combined, source_url=response.meta.get("listing_url", response.url))
             item["education_level"]  = infer_edu(combined)
@@ -767,4 +726,4 @@ class OpportunitiesSpider(scrapy.Spider):
             kept += 1
             yield item
 
-        self.logger.info(f"Reddit r/{sub}: {kept} kept from {len(entries)} entries.")
+        self.logger.info("Reddit r/%s: %d kept from %d entries.", sub, kept, len(entries))
