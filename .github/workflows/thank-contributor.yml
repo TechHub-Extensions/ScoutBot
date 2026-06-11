@@ -11,6 +11,7 @@ jobs:
 
     steps:
       - name: Post thank-you comment on PR
+        continue-on-error: true
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -40,6 +41,7 @@ jobs:
             });
 
       - name: Send thank-you email to contributor
+        continue-on-error: true
         env:
           GITHUB_TOKEN:      ${{ secrets.GITHUB_TOKEN }}
           SENDER_EMAIL:      ${{ secrets.SENDER_EMAIL }}
