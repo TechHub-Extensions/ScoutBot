@@ -1,15 +1,17 @@
 """
 ScoutBot cleanup module.
 
-Removes stale or expired opportunities from both the Nigeria and
-International tabs in Google Sheets.
+Removes stale, expired, or dead-linked opportunities from both the Nigeria
+and International tabs in Google Sheets.
 
 A row is removed when ANY of the following are true:
   1. Deadline is a parseable date that has already passed
   2. Date Added is older than STALE_DAYS (23) days — hard cap, no exceptions
+  3. The application_link returns a hard error (404/DNS) — dead page
 
-Uses header-name lookup (not column indices) so it works correctly with
-both the new 6-column schema and any future schema changes.
+Rule 3 uses the same _is_link_alive() logic as LinkValidationPipeline:
+  - 403 / 405 / 429 / 503 / timeout  → keep  (bot-block, page is real)
+  - 404 / 410 / DNS failure           → remove
 
 Run standalone:  python cleanup.py
 Or called automatically from run.py after every scrape.
@@ -17,6 +19,9 @@ Or called automatically from run.py after every scrape.
 
 import os
 import logging
+import ssl
+import urllib.error
+import urllib.request
 from datetime import date, timedelta
 
 from dotenv import load_dotenv
@@ -28,7 +33,9 @@ logger = logging.getLogger(__name__)
 SPREADSHEET_ID       = os.getenv("SPREADSHEET_ID", "1pLCEvDI1btjtOe1H3VgzCqpC6R0nRsEtnTwQhY6BqmU")
 SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "service_account.json")
 
-STALE_DAYS = 23   # entries older than this are removed unconditionally
+STALE_DAYS           = 23   # entries older than this are removed unconditionally
+LINK_CHECK_MIN_AGE   = 3    # skip link-check for rows added within this many days
+                             # (grace period for very new entries whose servers may be slow)
 
 NON_DATE_MARKERS = {
     "ongoing", "rolling", "open", "tbd", "tba",
@@ -36,6 +43,51 @@ NON_DATE_MARKERS = {
 }
 
 TAB_NAMES = ["Nigeria", "International"]
+
+_BOT_BLOCK_CODES = {403, 405, 406, 429, 503}
+_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/125.0.0.0 Safari/537.36"
+)
+
+
+def _is_link_alive(url: str, timeout: int = 7) -> bool:
+    """Same logic as LinkValidationPipeline._is_link_alive — see pipelines.py."""
+    if not url or not url.startswith("http"):
+        return False
+
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode    = ssl.CERT_NONE
+    headers = {"User-Agent": _UA}
+    last_code = None
+
+    for method in ("HEAD", "GET"):
+        try:
+            req = urllib.request.Request(url, headers=headers, method=method)
+            with urllib.request.urlopen(req, timeout=timeout, context=ctx):
+                return True
+        except urllib.error.HTTPError as exc:
+            last_code = exc.code
+            if exc.code in _BOT_BLOCK_CODES:
+                return True
+            if method == "HEAD" and exc.code in (405, 501):
+                continue
+            return False
+        except urllib.error.URLError as exc:
+            reason = str(exc.reason)
+            if "timed out" in reason or "time out" in reason.lower():
+                return True
+            if method == "HEAD":
+                continue
+            return False
+        except Exception:
+            if method == "HEAD":
+                continue
+            return False
+
+    return last_code in _BOT_BLOCK_CODES if last_code else False
 
 
 def parse_deadline(text):
@@ -60,46 +112,64 @@ def _col_index(headers, name):
 
 
 def cleanup_worksheet(ws, today):
-    """Remove expired / stale rows. Returns count removed.
-
-    Finds 'Deadline' and 'Date Added' columns by header name, not by
-    hardcoded index — works with any column order or schema version.
-    """
+    """Remove expired, stale, or dead-linked rows. Returns count removed."""
     all_values = ws.get_all_values()
     if len(all_values) <= 1:
         return 0
 
-    headers           = all_values[0]
-    deadline_idx      = _col_index(headers, "Deadline")
-    date_added_idx    = _col_index(headers, "Date Added")
+    headers         = all_values[0]
+    deadline_idx    = _col_index(headers, "Deadline")
+    date_added_idx  = _col_index(headers, "Date Added")
+    link_idx        = _col_index(headers, "Application Link")
 
-    stale_cutoff = today - timedelta(days=STALE_DAYS)
-    rows_to_delete = []
+    stale_cutoff    = today - timedelta(days=STALE_DAYS)
+    grace_cutoff    = today - timedelta(days=LINK_CHECK_MIN_AGE)
+    rows_to_delete  = []
 
     for row_num, row in enumerate(all_values[1:], start=2):
         def cell(idx):
-            return row[idx].strip() if idx >= 0 and idx < len(row) else ""
+            return row[idx].strip() if 0 <= idx < len(row) else ""
 
         deadline_text = cell(deadline_idx)
         date_added    = cell(date_added_idx)
+        link          = cell(link_idx)
         should_delete = False
+        reason        = ""
 
         # Rule 1: deadline already passed
         if not should_delete and deadline_text:
             deadline_date = parse_deadline(deadline_text)
             if deadline_date and deadline_date < today:
                 should_delete = True
+                reason = f"deadline passed ({deadline_text})"
 
-        # Rule 2: hard stale cap (STALE_DAYS days after Date Added)
+        # Rule 2: hard stale cap
         if not should_delete and date_added:
             try:
                 added = date.fromisoformat(date_added)
                 if added < stale_cutoff:
                     should_delete = True
+                    reason = f"stale >{STALE_DAYS}d (added {date_added})"
             except Exception:
                 pass
 
+        # Rule 3: application link is dead (404 / DNS failure)
+        # Only check rows older than LINK_CHECK_MIN_AGE to give new entries a grace period
+        if not should_delete and link:
+            is_new = False
+            if date_added:
+                try:
+                    added = date.fromisoformat(date_added)
+                    is_new = added > grace_cutoff
+                except Exception:
+                    pass
+            if not is_new:
+                if not _is_link_alive(link):
+                    should_delete = True
+                    reason = f"dead link (404/DNS): {link}"
+
         if should_delete:
+            logger.info("cleanup: Marking row %d for removal — %s", row_num, reason)
             rows_to_delete.append(row_num)
 
     for row_idx in reversed(rows_to_delete):
