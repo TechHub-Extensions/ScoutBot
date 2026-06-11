@@ -118,7 +118,7 @@ CATEGORY_URL_PATTERNS = [
 PAST_YEAR_RE = re.compile(r"\b(202[0-4])\b")
 
 # Only accept posts published within the last 4 days
-MAX_POST_AGE_DAYS = 14
+MAX_POST_AGE_DAYS = 3
 
 # Reddit subreddits (student-focused only)
 REDDIT_SUBREDDITS = [
@@ -448,12 +448,21 @@ class OpportunitiesSpider(scrapy.Spider):
         "https://opportunities.youthhubafrica.org/tag/nigeria/",
     ]
 
-    # Google News RSS queries — parsed directly from XML, no Cloudflare issues
-    GOOGLE_NEWS_RSS_URLS = [
+    # Google News RSS — Nigeria-specific opportunities (routed to Nigeria tab)
+    GOOGLE_NEWS_RSS_NIGERIA = [
         "https://news.google.com/rss/search?q=nigeria+scholarship+2026&hl=en-NG&gl=NG&ceid=NG:en",
         "https://news.google.com/rss/search?q=nigeria+fellowship+2026&hl=en-NG&gl=NG&ceid=NG:en",
         "https://news.google.com/rss/search?q=nigeria+internship+2026&hl=en-NG&gl=NG&ceid=NG:en",
         "https://news.google.com/rss/search?q=nigeria+bootcamp+OR+training+2026&hl=en-NG&gl=NG&ceid=NG:en",
+    ]
+
+    # Google News RSS — International opportunities open to Nigerians/Africans
+    # (Commonwealth, UK, UN, World Bank — routed to International tab)
+    GOOGLE_NEWS_RSS_INTL = [
+        "https://news.google.com/rss/search?q=commonwealth+scholarship+2026+Nigeria&hl=en&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=UK+scholarship+Nigeria+2026&hl=en&gl=GB&ceid=GB:en",
+        "https://news.google.com/rss/search?q=international+fellowship+Africa+2026&hl=en&gl=US&ceid=US:en",
+        "https://news.google.com/rss/search?q=world+bank+OR+UN+fellowship+Africa+2026&hl=en&gl=US&ceid=US:en",
     ]
 
     MAX_PAGES = 1  # No pagination — keeps runs fast
@@ -461,10 +470,19 @@ class OpportunitiesSpider(scrapy.Spider):
     def start_requests(self):
         for url in self.start_urls:
             yield scrapy.Request(url, callback=self.parse)
-        for url in self.GOOGLE_NEWS_RSS_URLS:
+        # Nigeria-specific feeds → forced to National tab
+        for url in self.GOOGLE_NEWS_RSS_NIGERIA:
             yield scrapy.Request(
                 url, callback=self.parse_google_news_rss,
                 headers={"Accept": "application/rss+xml, application/xml, text/xml"},
+                meta={"forced_range": "National"},
+            )
+        # International feeds → forced to International tab
+        for url in self.GOOGLE_NEWS_RSS_INTL:
+            yield scrapy.Request(
+                url, callback=self.parse_google_news_rss,
+                headers={"Accept": "application/rss+xml, application/xml, text/xml"},
+                meta={"forced_range": "International"},
             )
 
     def parse(self, response):
@@ -644,7 +662,7 @@ class OpportunitiesSpider(scrapy.Spider):
             item["title"]            = title
             item["industry"]         = infer_industry(combined)
             item["category"]         = category
-            item["range"]            = "National"   # RSS query is Nigeria-specific
+            item["range"]            = response.meta.get("forced_range", "National")
             item["education_level"]  = infer_edu(combined)
             item["organization"]     = source_txt or "Google News"
             item["summary"]          = desc[:400] or title
