@@ -49,7 +49,9 @@ Campus leads can register their WhatsApp group to receive opportunities **automa
 
 ScoutBot also publishes opportunities to a Telegram channel. No registration required — just join and get notified.
 
-> 📌 **Telegram link update in progress** — reach out to [@tsouk88](https://github.com/tsouk88) (the Telegram integration author) or open an issue for the current invite link.
+**[→ Join the ScoutBot Telegram Channel](https://t.me/ScoutBotOpportunities)**
+
+You'll receive the same weekly digest of Nigeria 🇳🇬 and International 🌍 opportunities, posted directly to the channel.
 
 ---
 
