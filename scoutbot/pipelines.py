@@ -1,10 +1,11 @@
 """
 Scrapy pipelines — ordered by priority:
 
-  1. DedupePipeline  (100) — drops items whose link is already in the sheet
-  2. SheetsPipeline  (200) — writes to Nigeria or International tab
+  1. DedupePipeline          (100) — drops items whose link is already in the sheet
+  2. LinkValidationPipeline  (150) — drops items whose application_link is dead (404/DNS)
+  3. SheetsPipeline          (200) — writes to Nigeria or International tab
 
-  GeminiPipeline (150) is implemented in gemini_scoring.py and commented out
+  GeminiPipeline is implemented in gemini_scoring.py and commented out
   in ITEM_PIPELINES (settings.py). See that file for the full rationale.
   To reactivate: uncomment GeminiPipeline in settings.py and add GEMINI_API_KEY secret.
 
@@ -14,14 +15,13 @@ Sheet columns (5 total):
 
 import logging
 import os
+import ssl
+import urllib.error
+import urllib.request
 from datetime import date
 
 from dotenv import load_dotenv
 from scrapy.exceptions import DropItem
-
-# GeminiPipeline — preserved in gemini_scoring.py, currently inactive.
-# Uncomment the line below and the matching entry in settings.py to reactivate.
-# from scoutbot.gemini_scoring import GeminiPipeline  # noqa: F401
 
 load_dotenv()
 
@@ -33,7 +33,7 @@ SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "service_account
 SHEET_HEADERS = [
     "Title",             # A
     "Category",          # B
-    "Application Link",  # C  ← direct org apply URL
+    "Application Link",  # C  <- direct org apply URL
     "Deadline",          # D
     "Date Added",        # E
 ]
@@ -41,6 +41,69 @@ LINK_COL_INDEX = 2
 
 TAB_NIGERIA       = "Nigeria"
 TAB_INTERNATIONAL = "International"
+
+# HTTP codes that mean "bot blocked but page is real" — students can open these fine
+_BOT_BLOCK_CODES = {403, 405, 406, 429, 503}
+
+# Browser-style User-Agent used for all link checks
+_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/125.0.0.0 Safari/537.36"
+)
+
+
+def _is_link_alive(url: str, timeout: int = 7) -> bool:
+    """
+    Return True when a student can plausibly open *url* in a browser.
+
+    Rules:
+    - 2xx / 3xx (after redirect)  → alive
+    - 403 / 405 / 429 / 503       → alive  (bot-block; students aren't bots)
+    - 404 / 410 / 400              → dead
+    - DNS failure / conn refused   → dead
+    - Timeout                      → alive  (slow server, not a dead URL)
+    - SSL cert error               → ignored (some .gov.ng certs are broken,
+                                     but the page is real for students)
+
+    Always tries HEAD first (cheap), falls back to GET on 405/501.
+    """
+    if not url or not url.startswith("http"):
+        return False
+
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode    = ssl.CERT_NONE
+
+    headers = {"User-Agent": _UA}
+    last_code = None
+
+    for method in ("HEAD", "GET"):
+        try:
+            req = urllib.request.Request(url, headers=headers, method=method)
+            with urllib.request.urlopen(req, timeout=timeout, context=ctx):
+                return True                          # 2xx/3xx — alive
+        except urllib.error.HTTPError as exc:
+            last_code = exc.code
+            if exc.code in _BOT_BLOCK_CODES:
+                return True                          # bot-block — allow
+            if method == "HEAD" and exc.code in (405, 501):
+                continue                             # server doesn't allow HEAD → retry GET
+            return False                             # 404, 410, etc. — dead
+        except urllib.error.URLError as exc:
+            reason = str(exc.reason)
+            if "timed out" in reason or "time out" in reason.lower():
+                return True                          # slow server — allow
+            if method == "HEAD":
+                continue                             # retry GET before giving up
+            return False                             # DNS / connection refused — dead
+        except Exception:
+            if method == "HEAD":
+                continue
+            return False
+
+    # Both methods exhausted — trust last HTTP code if we got one
+    return last_code in _BOT_BLOCK_CODES if last_code else False
 
 
 def _resolve_json_path():
@@ -119,6 +182,36 @@ class DedupePipeline:
         return item
 
 
+class LinkValidationPipeline:
+    """
+    Validates every new application_link before it reaches SheetsPipeline.
+
+    Runs at priority 150 — after DedupePipeline (100) so it only checks
+    genuinely new links, never re-checking URLs already in the sheet.
+
+    Alive:  2xx/3xx, 403/405/429/503 (bot-blocks), timeout (slow server)
+    Dead:   404, 410, DNS failure, connection refused → DropItem
+    """
+
+    @classmethod
+    def from_crawler(cls, crawler):
+        return cls()
+
+    def process_item(self, item, spider=None):
+        link = (item.get("application_link") or "").strip()
+        if not link:
+            raise DropItem("Empty application_link")
+
+        alive = _is_link_alive(link)
+        if alive:
+            logger.info("LinkValidation: OK    — %s", link)
+        else:
+            logger.warning("LinkValidation: DEAD  — dropping %s", link)
+            raise DropItem(f"Dead link (404/DNS): {link}")
+
+        return item
+
+
 class SheetsPipeline:
     """Writes opportunities to Nigeria or International tab."""
 
@@ -177,7 +270,7 @@ class SheetsPipeline:
             try:
                 self.nigeria_ws.append_rows(self.nigeria_rows, value_input_option="USER_ENTERED")
                 nigeria_written = len(self.nigeria_rows)
-                logger.info("SheetsPipeline: %d rows → Nigeria tab.", nigeria_written)
+                logger.info("SheetsPipeline: %d rows -> Nigeria tab.", nigeria_written)
             except Exception as exc:
                 logger.error("SheetsPipeline: Nigeria write error — %s", exc)
 
@@ -185,7 +278,7 @@ class SheetsPipeline:
             try:
                 self.international_ws.append_rows(self.intl_rows, value_input_option="USER_ENTERED")
                 intl_written = len(self.intl_rows)
-                logger.info("SheetsPipeline: %d rows → International tab.", intl_written)
+                logger.info("SheetsPipeline: %d rows -> International tab.", intl_written)
             except Exception as exc:
                 logger.error("SheetsPipeline: International write error — %s", exc)
 
