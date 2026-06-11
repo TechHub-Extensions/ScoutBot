@@ -4,6 +4,10 @@ Scrapy pipelines — ordered by priority:
   1. DedupePipeline  (100) — drops items whose link is already in the sheet
   2. SheetsPipeline  (200) — writes to Nigeria or International tab
 
+  GeminiPipeline (150) is implemented in gemini_scoring.py and commented out
+  in ITEM_PIPELINES (settings.py). See that file for the full rationale.
+  To reactivate: uncomment GeminiPipeline in settings.py and add GEMINI_API_KEY secret.
+
 Sheet columns (5 total):
   Title | Category | Application Link | Deadline | Date Added
 """
@@ -14,6 +18,10 @@ from datetime import date
 
 from dotenv import load_dotenv
 from scrapy.exceptions import DropItem
+
+# GeminiPipeline — preserved in gemini_scoring.py, currently inactive.
+# Uncomment the line below and the matching entry in settings.py to reactivate.
+# from scoutbot.gemini_scoring import GeminiPipeline  # noqa: F401
 
 load_dotenv()
 
@@ -71,7 +79,6 @@ def _ensure_tab(spreadsheet, name):
     if existing[:len(SHEET_HEADERS)] == SHEET_HEADERS:
         return ws
 
-    # Headers mismatch — update header row only (preserve data rows)
     ws.update("A1", [SHEET_HEADERS])
     logger.info("SheetsPipeline: Updated headers on tab '%s'.", name)
     return ws
