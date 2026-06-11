@@ -1,6 +1,6 @@
 # ScoutBot
 
-> An open-source Python bot that automatically scrapes the internet for opportunities for Nigerian students — scholarships, fellowships, internships, bootcamps, and more. It updates a shared Google Spreadsheet and emails a **weekly digest** to subscribers every Sunday.
+> An open-source Python bot that automatically finds scholarships, fellowships, and internships for Nigerian students. It updates a shared Google Spreadsheet, sends a weekly email digest, and delivers opportunities directly to WhatsApp campus groups and a Telegram channel.
 
 [![GitHub Issues](https://img.shields.io/github/issues/TechHub-Extensions/ScoutBot)](https://github.com/TechHub-Extensions/ScoutBot/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/TechHub-Extensions/ScoutBot)](https://github.com/TechHub-Extensions/ScoutBot/stargazes)
@@ -12,7 +12,9 @@
 
 ---
 
-## 📬 Subscribe — Free Weekly Digest
+## 📬 Three Ways to Receive ScoutBot
+
+### 1 — Weekly Email Digest (free, no login)
 
 ScoutBot emails a curated digest of the **latest** student opportunities every **Sunday at 10AM Lagos time**.
 
@@ -20,56 +22,63 @@ ScoutBot emails a curated digest of the **latest** student opportunities every *
 
 No app, no login, no fee. Fill the form once and you're on the list.
 
+---
+
+### 2 — WhatsApp Campus Delivery (filtered by level)
+
+Campus leads can register their WhatsApp group to receive opportunities **automatically, filtered by academic level**:
+
+| Option | What you receive |
+|--------|-----------------|
+| **Both** | All opportunities — Undergrad + Graduate/PhD |
+| **Undergraduate & Internships only** | Entry-level, NYSC-eligible, and internship posts |
+| **Graduate, Masters & PhD only** | Postgraduate scholarships and fellowships |
+
+**How to register your campus group:**
+1. Open the **[Campus Lead Portal →](https://scoutbot-portal.vercel.app)** *(link will be updated — see note below)*
+2. Paste your WhatsApp group invite link (`chat.whatsapp.com/...`)
+3. Select which type of opportunities your group wants to receive
+4. ScoutBot joins your group automatically
+5. Make **+234 816 449 9922** (ScoutBot) an Admin so it can post
+
+> 📌 **Portal link update in progress** — we've emailed the portal owner for the latest URL. Check back here or open an issue if you need it urgently.
+
+---
+
+### 3 — Telegram Channel
+
+ScoutBot also publishes opportunities to a Telegram channel. No registration required — just join and get notified.
+
+> 📌 **Telegram link update in progress** — reach out to [@tsouk88](https://github.com/tsouk88) (the Telegram integration author) or open an issue for the current invite link.
+
+---
+
 📋 [View the live opportunity spreadsheet →](https://docs.google.com/spreadsheets/d/1pLCEvDI1btjtOe1H3VgzCqpC6R0nRsEtnTwQhY6BqmU/edit)
 
 ---
 
 ## What ScoutBot Does
 
-- 🔍 **Scrapes 8+ live feeds daily** — Google News RSS (Nigeria + International), YouthHubAfrica
-- 🔗 **Direct application links only** — every link is extracted from the article's "Apply Now" button; items with no findable apply link are dropped before entering the sheet
-- 📊 **Writes to two separate tabs**: Nigeria 🇳🇬 and International 🌍 — never mixed
-- 🤖 **AI quality scoring** — every new item scored 1–10 by Gemini 2.0 Flash; items scoring below 5 are dropped
+- 🔍 **Scrapes 21+ direct org pages daily** — checks PTDF, NDDC, NNPC, MTN Foundation, Tony Elumelu Foundation, Commonwealth Scholarships, Chevening, Fulbright, World Bank, AfDB, AU, UNDP, UNICEF, British Council, and more
+- 🔗 **Direct org application links only** — every link goes to the actual organisation's apply page, never a news aggregator or redirect URL
+- 📊 **Two separate tabs**: Nigeria 🇳🇬 and International 🌍 — never mixed
+- 📱 **WhatsApp campus delivery** — campus leads register their group; opportunities arrive filtered by academic level
+- 📣 **Telegram channel** — real-time posts as new opportunities are discovered
 - 🧹 **Auto-cleans daily** — entries removed when closed, past deadline, or older than 23 days
-- 📧 **One email per week** — Sunday digest with only opportunities added in the last 7 days
-- 🚫 **Students only** — scholarships, fellowships, internships, bootcamps. No startup/VC content
+- 📧 **One email per week** — Sunday digest with only opportunities added in the last 7 days, sent to 500+ subscribers
+- 🚫 **Students only** — scholarships, fellowships, internships only. No startup/VC content.
 - ☁️ **Runs entirely on GitHub Actions** — no server, no Replit dependency, works 24/7 independently
 
 ---
 
-## How AI Is Used
+## Accomplishments We're Proud Of
 
-ScoutBot uses **Google Gemini 2.0 Flash** to score and summarise every scraped opportunity before it enters the sheet.
-
-```
-Scrape → DedupePipeline → GeminiPipeline → SheetsPipeline
-           (drop known)    (score 1–10)      (write to Nigeria/International tab)
-                           (drop < 5)
-                           (add AI blurb)
-```
-
-**The AI does two things:**
-1. **Scores** each opportunity 1–10 for relevance to Nigerian students — items below 5 are dropped silently
-2. **Generates a 2-sentence blurb** that appears in the weekly email so subscribers instantly know if an opportunity is for them
-
-**Why Gemini and not GPT-4 or Claude?**
-Gemini 2.0 Flash is available on a free API tier with 1,500 requests/day — enough for ScoutBot's daily volume (typically 5–15 new items) with zero cost.
-
-**Full technical documentation:** [`docs/AI_IMPLEMENTATION.md`](./docs/AI_IMPLEMENTATION.md)
-
----
-
-## Opportunity Lifecycle
-
-```
-Day 0:    Opportunity posted on the web
-Day 0–3:  Spider picks it up (MAX_POST_AGE_DAYS = 3)
-          → follows article to find direct "Apply Now" link
-          → Gemini scores it 1–10
-          → if score ≥ 5: written to Google Sheet
-Day 7:    Included in Sunday weekly email digest
-Day 23:   Hard-removed from sheet by cleanup.py (STALE_DAYS = 23)
-```
+- **500+ email subscribers** acquired organically through student WhatsApp groups and word-of-mouth — zero paid promotion
+- **WhatsApp campus delivery system** — built from scratch by [@olamidefasogbon](https://github.com/olamidefasogbon): a full distribution bridge that joins WhatsApp groups, filters opportunities by level, and broadcasts automatically
+- **Subscriber web portal** with real-time registration, QR code generation, and live ScoutBot status indicator
+- **Telegram integration** — built by [@tsouk88](https://github.com/tsouk88), extending delivery to a third channel with zero extra infrastructure
+- **Zero cost infrastructure** — entire stack runs free: GitHub Actions, Gmail SMTP, Google Sheets API
+- **All links are direct org URLs** — no news.google.com, no redirects; every row in the sheet links to the actual application page
 
 ---
 
@@ -77,24 +86,29 @@ Day 23:   Hard-removed from sheet by cleanup.py (STALE_DAYS = 23)
 
 ```
 Every day at 07:00 WAT (GitHub Actions — scoutbot.yml):
-  1. scrapy crawl opportunities  →  scrapes RSS feeds → extracts apply links
-                                 →  scores each with Gemini → writes to Nigeria / International tab
-  2. python run.py --cleanup     →  removes entries older than 23 days or with past deadlines
+  1. scrapy crawl opportunities  →  checks 21+ org pages for open opportunities
+                                 →  extracts direct apply URLs
+                                 →  deduplicates against existing sheet entries
+                                 →  writes to Nigeria / International tab
+
+  2. python run.py --cleanup     →  removes entries older than 23 days or past deadline
 
 Every Sunday 10:00 WAT (GitHub Actions — digest.yml):
-  3. python run.py --notify      →  sends weekly digest (last 7 days only) to all subscribers
+  3. python run.py --notify      →  sends weekly email digest (last 7 days) to all subscribers
+
+After each scrape (broadcast_daemon.py):
+  4. WhatsApp distribution bridge  →  sends new items to registered campus groups (filtered by level)
+  5. Telegram notification         →  posts new items to Telegram channel
 
 1st of every month 07:30 WAT (GitHub Actions — admin-report.yml):
-  4. python admin_report.py      →  sends monthly stats report to project lead
+  6. python admin_report.py      →  monthly stats report to project lead
 ```
 
 ---
 
 ## Why ScoutBot Exists
 
-Opportunities for Nigerian students are scattered across dozens of websites with no single reliable source. ScoutBot runs quietly in the background, finds new opportunities as they appear, extracts direct application links, scores them with AI, and delivers them straight to people's inboxes — once a week, clean and fresh.
-
-**This is a bot, not a web app.** No dashboard, no login page, no frontend — just an automated Python system that works independently of any platform.
+Opportunities for Nigerian students are scattered across dozens of websites with no single reliable source. Most are announced on corporate press offices, government portals, or international org pages that students rarely check. ScoutBot checks all of them automatically, every day, and pushes the results to wherever students already are — their WhatsApp group, their Telegram feed, or their inbox once a week.
 
 ---
 
@@ -104,10 +118,17 @@ Opportunities for Nigerian students are scattered across dozens of websites with
 ScoutBot/
 ├── scoutbot/
 │   ├── spiders/
-│   │   └── opportunities_spider.py  ← All scraping + RSS + apply link extraction
-│   ├── pipelines.py                 ← DedupePipeline → GeminiPipeline → SheetsPipeline
+│   │   └── opportunities_spider.py  ← Scrapes 21+ org pages + scholars4dev RSS
+│   ├── pipelines.py                 ← DedupePipeline → SheetsPipeline
 │   ├── items.py                     ← Scrapy item definition
 │   └── settings.py                  ← Scrapy settings + pipeline order
+├── distribution-bridge/             ← WhatsApp delivery system (by olamidefasogbon)
+│   ├── whatsapp.js                  ← whatsapp-web.js session manager
+│   ├── broadcast.py                 ← Sends items to registered campus groups
+│   └── broadcast_daemon.py          ← Daemon that queues and delivers broadcasts
+├── frontend-handler/                ← Campus Lead Portal (React + Vite)
+│   └── src/
+│       └── CampusLeadRegistration.jsx  ← Group registration + level filtering UI
 ├── notify.py                        ← Weekly email digest sender
 ├── cleanup.py                       ← Removes expired sheet entries (23-day cap)
 ├── admin_report.py                  ← Monthly stats email to project lead
@@ -116,7 +137,6 @@ ScoutBot/
 ├── requirements.txt
 ├── .env.example                     ← Copy to .env and fill in credentials
 ├── docs/
-│   ├── AI_IMPLEMENTATION.md         ← Full Gemini AI pipeline documentation
 │   └── VOLUNTEER_ROLES.md           ← Step-by-step guide for all volunteer roles
 ├── .github/
 │   └── workflows/
@@ -125,34 +145,52 @@ ScoutBot/
 │       ├── admin-report.yml         ← Monthly 07:30 WAT stats report
 │       ├── welcome.yml              ← Monthly welcome email to new subscribers
 │       └── pytest.yml               ← CI tests on every push/PR
-├── CHANGELOG.md                     ← Full project history
+├── CHANGELOG.md
 ├── CONTRIBUTING.md
-├── CODE_REFERENCE.md
 └── ENGINEERING.md
 ```
 
 ---
 
+## Opportunity Sources
+
+ScoutBot checks **21 organisation pages directly** every day — no news aggregators, no redirects:
+
+| Nigeria | International |
+|---------|---------------|
+| PTDF (ptdf.gov.ng) | Commonwealth Scholarship |
+| NDDC (nddc.gov.ng) | Chevening Scholarship |
+| NNPC Group | Fulbright Program |
+| Shell/SNEPCo | Mastercard Foundation |
+| MTN Foundation | World Bank |
+| Tony Elumelu Foundation | African Development Bank |
+| Dangote Foundation | African Union |
+| Access Bank | UNDP Nigeria |
+| YouthHub Africa | UNICEF |
+| NDIC (SIWES) | UN Fellowship, British Council NG |
+
+Plus **scholars4dev.com** RSS as a supplementary feed when it has qualifying items.
+
+---
+
 ## 🤝 Volunteer — Help Us Grow ScoutBot
 
-ScoutBot is maintained by a small founding team and open-source contributors. Several roles are open to volunteers — no application required to get started.
+ScoutBot is maintained by a small founding team and open-source contributors. Several roles are open to volunteers — no application required.
 
 **[→ Full volunteer guide: docs/VOLUNTEER_ROLES.md](./docs/VOLUNTEER_ROLES.md)**
 
-| Role | Time/week | Skills needed | How to start |
-|------|-----------|---------------|--------------|
-| **Source Hunter** | 1–3 hrs | Browser, no coding | [Open issue: "volunteer: Source Hunter"](https://github.com/TechHub-Extensions/ScoutBot/issues/new) |
-| **Community Ambassador** | 1–2 hrs | Writing, social media | Start immediately — no approval needed |
-| **Issue Triager** | 30 min | Basic GitHub | Open an intro issue first |
-| **Data Curator** | 1–2 hrs | Google Sheets | Open an intro issue first |
-| **Documentation Writer** | 2–4 hrs | Markdown | Open an intro issue first |
-| **Source Monitor** | 30 min | Browser + GitHub | [Open issue: "volunteer: Source Monitor"](https://github.com/TechHub-Extensions/ScoutBot/issues/new) |
-| **Email Designer** | 2–5 hrs | HTML + CSS | Open an intro issue first |
-| **PR Reviewer** | 1–2 hrs | Python | Open an intro issue first |
-| **QA Tester** | 2–4 hrs | Python, CLI | Open an intro issue first |
-| **Subscriber Support** | 30 min | Gmail | Open an intro issue first |
+| Role | Time/week | Skills needed |
+|------|-----------|---------------|
+| **Source Hunter** | 1–3 hrs | Browser, no coding |
+| **Community Ambassador** | 1–2 hrs | Writing, social media |
+| **Issue Triager** | 30 min | Basic GitHub |
+| **Data Curator** | 1–2 hrs | Google Sheets |
+| **Documentation Writer** | 2–4 hrs | Markdown |
+| **Email Designer** | 2–5 hrs | HTML + CSS |
+| **PR Reviewer** | 1–2 hrs | Python |
+| **QA Tester** | 2–4 hrs | Python, CLI |
 
-To apply: open a GitHub issue titled `volunteer: interested in [Role Name]`. Include your name, location, why you want the role, and available hours.
+To apply: open a GitHub issue titled `volunteer: interested in [Role Name]`.
 
 ---
 
@@ -165,10 +203,10 @@ pip install -r requirements.txt
 cp .env.example .env
 # Fill in .env with your credentials (see ENGINEERING.md)
 
-python run.py --scrape      # Scrape only (no email)
+python run.py --scrape      # Scrape only
 python run.py --cleanup     # Remove expired entries only
 python run.py --notify      # Send digest email only
-python run.py --dry-run     # Build email preview without sending (writes email_preview.html)
+python run.py --dry-run     # Build email preview without sending
 python admin_report.py      # Send monthly stats report manually
 ```
 
@@ -181,14 +219,13 @@ SPREADSHEET_ID=your_google_sheet_id
 FORM_SHEET_ID=your_form_responses_sheet_id
 GOOGLE_SERVICE_ACCOUNT_JSON=service_account.json
 RECIPIENT_EMAILS=email1@gmail.com,email2@gmail.com
-GEMINI_API_KEY=your_gemini_api_key
 ```
 
 ---
 
 ## GitHub Actions Setup (runs independently)
 
-The bot runs entirely on GitHub Actions free tier — no server required. Add these under **Settings → Secrets → Actions**:
+Add these secrets under **Settings → Secrets → Actions**:
 
 | Secret | Description |
 |--------|-------------|
@@ -198,11 +235,8 @@ The bot runs entirely on GitHub Actions free tier — no server required. Add th
 | `FORM_SHEET_ID` | ID of the subscriber form response sheet |
 | `RECIPIENT_EMAILS` | Comma-separated fallback recipients |
 | `GOOGLE_SERVICE_ACCOUNT_JSON_B64` | Base64-encoded service account JSON |
-| `GEMINI_API_KEY` | Google Gemini API key (free at aistudio.google.com) |
 
 Encode your service account: `base64 -i service_account.json | tr -d '\n'`
-
-Once secrets are set, the bot runs on schedule with **no Replit, no VPS, no cron server** required.
 
 ---
 
@@ -225,20 +259,18 @@ Organisations can sponsor a featured placement in the Sunday digest for **₦5,0
 |------|-------|------|
 | **Kamsi Richard Ivanna** | kamsirichard1960@gmail.com | Founder & Project Lead |
 | Ibukun Ojo | adeojoibukun28@gmail.com | Core Team |
-| Success | successolamide46@gmail.com | Core Team |
+| Success (Olamide) | successolamide46@gmail.com | Core Team — WhatsApp delivery |
 
 ---
 
 ## Contributing
-
-ScoutBot is open source and welcomes contributions from developers of all skill levels — especially Nigerian students.
 
 **Quick ways to help:**
 - ⭐ **Star this repo** (takes 2 seconds)
 - 🐛 **[Open an Issue](https://github.com/TechHub-Extensions/ScoutBot/issues)** — report a broken source, a bug, or a feature idea
 - 🔀 **Fork and submit a PR** — add sources, fix bugs, improve email design
 - 📣 **Share** with Nigerian student WhatsApp groups, Discord servers, Twitter/X
-- 🤝 **Volunteer** — see the [volunteer guide](./docs/VOLUNTEER_ROLES.md) for non-coding roles
+- 🤝 **Volunteer** — see the [volunteer guide](./docs/VOLUNTEER_ROLES.md)
 
 **Ready to code?** Start with issues labelled [`good first issue`](https://github.com/TechHub-Extensions/ScoutBot/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
@@ -257,7 +289,7 @@ Every merged contribution is permanently credited in [CONTRIBUTORS.md](./CONTRIB
         <img src="https://github.com/olamidefasogbon.png" width="60" style="border-radius:50%" /><br/>
         <b>olamidefasogbon</b>
       </a><br/>
-      30 PRs — WhatsApp engine,<br/>V2 frontend, link validation
+      30 PRs — WhatsApp delivery<br/>engine, Campus Lead Portal,<br/>link validation
     </td>
     <td align="center" width="140">
       <a href="https://github.com/saurabhhhcodes">
@@ -271,7 +303,7 @@ Every merged contribution is permanently credited in [CONTRIBUTORS.md](./CONTRIB
         <img src="https://github.com/tsouk88.png" width="60" style="border-radius:50%" /><br/>
         <b>tsouk88</b>
       </a><br/>
-      4 PRs — new sources,<br/>Telegram, auto-label
+      4 PRs — Telegram channel,<br/>new sources, auto-label
     </td>
     <td align="center" width="140">
       <a href="https://github.com/prajjukorban">
