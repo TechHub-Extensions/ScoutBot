@@ -76,19 +76,53 @@ def _get_or_create_tab(spreadsheet, name):
 # ---------------------------------------------------------------------------
 
 class DedupePipeline:
-    """Drops items whose link has already been seen in this run."""
+    """Drops duplicate items before they reach GeminiPipeline.
+
+    Loads existing sheet links at spider-open so items already in the sheet
+    are dropped here (priority 100) rather than after Gemini scoring (150).
+    This avoids burning Gemini quota on items that will be discarded anyway.
+    """
 
     def __init__(self):
-        self.seen = set()
+        self.seen     = set()   # within-run dedup
+        self.existing = set()   # pre-loaded from the live sheet
 
     @classmethod
     def from_crawler(cls, crawler):
         return cls()
 
+    def open_spider(self, spider=None):
+        try:
+            import gspread
+            from google.oauth2.service_account import Credentials
+            creds = Credentials.from_service_account_file(
+                _resolve_json_path(),
+                scopes=[
+                    "https://www.googleapis.com/auth/spreadsheets",
+                    "https://www.googleapis.com/auth/drive",
+                ],
+            )
+            client = gspread.authorize(creds)
+            ss     = client.open_by_key(SPREADSHEET_ID)
+            for tab_name in (TAB_NIGERIA, TAB_INTERNATIONAL):
+                try:
+                    ws = ss.worksheet(tab_name)
+                    for row in ws.get_all_values()[1:]:
+                        if len(row) > LINK_COL_INDEX and row[LINK_COL_INDEX].strip():
+                            self.existing.add(row[LINK_COL_INDEX].strip())
+                except Exception:
+                    pass
+            logger.info(
+                "DedupePipeline: %d existing sheet links pre-loaded (Gemini will skip these).",
+                len(self.existing),
+            )
+        except Exception as exc:
+            logger.warning("DedupePipeline: Could not pre-load sheet links — %s", exc)
+
     def process_item(self, item, spider=None):
         link = (item.get("application_link") or "").strip()
-        if not link or link in self.seen:
-            raise DropItem(f"Duplicate/empty link: {link}")
+        if not link or link in self.seen or link in self.existing:
+            raise DropItem(f"Duplicate/empty link: {link!r}")
         self.seen.add(link)
         return item
 
