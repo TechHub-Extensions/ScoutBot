@@ -20,6 +20,12 @@ DEFAULT_REQUEST_HEADERS = {
 
 ITEM_PIPELINES = {
     "scoutbot.pipelines.DedupePipeline": 100,
+    # "scoutbot.pipelines.GeminiPipeline": 150,  # Gemini AI scoring — see gemini_scoring.py
+    #   Removed from active pipeline: free-tier quota (1,500 req/day) was exhausted by test runs,
+    #   extending run times from ~2 min to 6–8 min due to 60s retry waits on HTTP 429.
+    #   Score distribution clustered 6–8 for nearly all items that passed keyword filters,
+    #   providing little additional signal. Code preserved in gemini_scoring.py for future use
+    #   if a paid tier or improved quota becomes available.
     "scoutbot.pipelines.SheetsPipeline": 200,
 }
 
