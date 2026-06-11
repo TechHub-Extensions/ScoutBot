@@ -1,14 +1,15 @@
 """
 ScoutBot cleanup module.
 
-Removes closed or stale opportunities from BOTH the Nigeria and
+Removes stale or expired opportunities from both the Nigeria and
 International tabs in Google Sheets.
 
 A row is removed when ANY of the following are true:
-  1. Status column == "Closed"
-  2. Deadline is a parseable date that has already passed
-  3. Date Added is > STALE_DAYS (23) days ago — hard cap applied to every row
-     regardless of deadline, so no entry lingers longer than 23 days
+  1. Deadline is a parseable date that has already passed
+  2. Date Added is older than STALE_DAYS (23) days — hard cap, no exceptions
+
+Uses header-name lookup (not column indices) so it works correctly with
+both the new 6-column schema and any future schema changes.
 
 Run standalone:  python cleanup.py
 Or called automatically from run.py after every scrape.
@@ -27,11 +28,7 @@ logger = logging.getLogger(__name__)
 SPREADSHEET_ID       = os.getenv("SPREADSHEET_ID", "1pLCEvDI1btjtOe1H3VgzCqpC6R0nRsEtnTwQhY6BqmU")
 SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "service_account.json")
 
-DEADLINE_COL_INDEX   = 9   # 0-based
-STATUS_COL_INDEX     = 10  # 0-based
-DATE_ADDED_COL_INDEX = 11  # 0-based — new column
-
-STALE_DAYS = 23   # hard cap — every entry is removed 23 days after being added
+STALE_DAYS = 23   # entries older than this are removed unconditionally
 
 NON_DATE_MARKERS = {
     "ongoing", "rolling", "open", "tbd", "tba",
@@ -54,33 +51,46 @@ def parse_deadline(text):
         return None
 
 
+def _col_index(headers, name):
+    """Return the 0-based index of a column header, or -1 if not found."""
+    try:
+        return [h.strip() for h in headers].index(name)
+    except ValueError:
+        return -1
+
+
 def cleanup_worksheet(ws, today):
-    """Remove expired / stale rows from a single worksheet. Returns count removed."""
+    """Remove expired / stale rows. Returns count removed.
+
+    Finds 'Deadline' and 'Date Added' columns by header name, not by
+    hardcoded index — works with any column order or schema version.
+    """
     all_values = ws.get_all_values()
     if len(all_values) <= 1:
         return 0
 
+    headers           = all_values[0]
+    deadline_idx      = _col_index(headers, "Deadline")
+    date_added_idx    = _col_index(headers, "Date Added")
+
     stale_cutoff = today - timedelta(days=STALE_DAYS)
     rows_to_delete = []
 
-    for idx, row in enumerate(all_values[1:], start=2):
-        status_text   = row[STATUS_COL_INDEX].strip().lower()   if len(row) > STATUS_COL_INDEX   else ""
-        deadline_text = row[DEADLINE_COL_INDEX].strip()         if len(row) > DEADLINE_COL_INDEX  else ""
-        date_added    = row[DATE_ADDED_COL_INDEX].strip()       if len(row) > DATE_ADDED_COL_INDEX else ""
+    for row_num, row in enumerate(all_values[1:], start=2):
+        def cell(idx):
+            return row[idx].strip() if idx >= 0 and idx < len(row) else ""
 
+        deadline_text = cell(deadline_idx)
+        date_added    = cell(date_added_idx)
         should_delete = False
 
-        # Rule 1: explicitly closed
-        if status_text == "closed":
-            should_delete = True
-
-        # Rule 2: deadline has already passed
-        if not should_delete:
+        # Rule 1: deadline already passed
+        if not should_delete and deadline_text:
             deadline_date = parse_deadline(deadline_text)
             if deadline_date and deadline_date < today:
                 should_delete = True
 
-        # Rule 3: hard 33-day cap — remove regardless of deadline
+        # Rule 2: hard stale cap (STALE_DAYS days after Date Added)
         if not should_delete and date_added:
             try:
                 added = date.fromisoformat(date_added)
@@ -90,7 +100,7 @@ def cleanup_worksheet(ws, today):
                 pass
 
         if should_delete:
-            rows_to_delete.append(idx)
+            rows_to_delete.append(row_num)
 
     for row_idx in reversed(rows_to_delete):
         ws.delete_rows(row_idx)
@@ -124,17 +134,17 @@ def cleanup():
             try:
                 ws = ss.worksheet(tab_name)
             except Exception:
-                logger.info(f"cleanup: Tab '{tab_name}' not found — skipping.")
+                logger.info("cleanup: Tab '%s' not found — skipping.", tab_name)
                 continue
             removed = cleanup_worksheet(ws, today)
-            logger.info(f"cleanup: Removed {removed} rows from '{tab_name}' tab.")
+            logger.info("cleanup: Removed %d rows from '%s' tab.", removed, tab_name)
             total += removed
 
-        logger.info(f"cleanup: Total {total} rows removed across all tabs.")
+        logger.info("cleanup: Total %d rows removed across all tabs.", total)
         return total
 
     except Exception as exc:
-        logger.error(f"cleanup: Failed — {exc}")
+        logger.error("cleanup: Failed — %s", exc)
         return 0
 
 
