@@ -3,7 +3,7 @@
 > An open-source Python bot that automatically scrapes the internet for opportunities for Nigerian students — scholarships, fellowships, internships, bootcamps, and more. It updates a shared Google Spreadsheet and emails a **weekly digest** to subscribers every Sunday.
 
 [![GitHub Issues](https://img.shields.io/github/issues/TechHub-Extensions/ScoutBot)](https://github.com/TechHub-Extensions/ScoutBot/issues)
-[![GitHub Stars](https://img.shields.io/github/stars/TechHub-Extensions/ScoutBot)](https://github.com/TechHub-Extensions/ScoutBot/stargazers)
+[![GitHub Stars](https://img.shields.io/github/stars/TechHub-Extensions/ScoutBot)](https://github.com/TechHub-Extensions/ScoutBot/stargazes)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![ScoutBot Scrape](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/scoutbot.yml/badge.svg)](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/scoutbot.yml)
@@ -26,12 +26,12 @@ No app, no login, no fee. Fill the form once and you're on the list.
 
 ## What ScoutBot Does
 
-- 🔍 **Scrapes 8+ live feeds daily** — Google News RSS (Nigeria + International), YouthHubAfrica, Reddit
+- 🔍 **Scrapes 8+ live feeds daily** — Google News RSS (Nigeria + International), YouthHubAfrica
+- 🔗 **Direct application links only** — every link is extracted from the article's "Apply Now" button; items with no findable apply link are dropped before entering the sheet
 - 📊 **Writes to two separate tabs**: Nigeria 🇳🇬 and International 🌍 — never mixed
-- 🤖 **AI quality scoring** — every new item scored 1–10 by Gemini; low-quality items dropped before the sheet
-- 🧹 **Auto-cleans daily** — opportunities removed when closed, past deadline, or older than 23 days
+- 🤖 **AI quality scoring** — every new item scored 1–10 by Gemini 2.0 Flash; items scoring below 5 are dropped
+- 🧹 **Auto-cleans daily** — entries removed when closed, past deadline, or older than 23 days
 - 📧 **One email per week** — Sunday digest with only opportunities added in the last 7 days
-- 🔗 **Direct application links** — links go to the actual apply page, not a blog post
 - 🚫 **Students only** — scholarships, fellowships, internships, bootcamps. No startup/VC content
 - ☁️ **Runs entirely on GitHub Actions** — no server, no Replit dependency, works 24/7 independently
 
@@ -42,17 +42,17 @@ No app, no login, no fee. Fill the form once and you're on the list.
 ScoutBot uses **Google Gemini 2.0 Flash** to score and summarise every scraped opportunity before it enters the sheet.
 
 ```
-Scrape (30–40 items) → DedupePipeline → GeminiPipeline → SheetsPipeline
-                           (drop known)    (score 1–10)     (write tab)
-                                           (drop < 5)
-                                           (add AI blurb)
+Scrape → DedupePipeline → GeminiPipeline → SheetsPipeline
+           (drop known)    (score 1–10)      (write to Nigeria/International tab)
+                           (drop < 5)
+                           (add AI blurb)
 ```
 
 **The AI does two things:**
 1. **Scores** each opportunity 1–10 for relevance to Nigerian students — items below 5 are dropped silently
 2. **Generates a 2-sentence blurb** that appears in the weekly email so subscribers instantly know if an opportunity is for them
 
-**Why Gemini and not GPT-4 or Claude?**  
+**Why Gemini and not GPT-4 or Claude?**
 Gemini 2.0 Flash is available on a free API tier with 1,500 requests/day — enough for ScoutBot's daily volume (typically 5–15 new items) with zero cost.
 
 **Full technical documentation:** [`docs/AI_IMPLEMENTATION.md`](./docs/AI_IMPLEMENTATION.md)
@@ -64,33 +64,37 @@ Gemini 2.0 Flash is available on a free API tier with 1,500 requests/day — eno
 ```
 Day 0:    Opportunity posted on the web
 Day 0–3:  Spider picks it up (MAX_POST_AGE_DAYS = 3)
-Day 1–3:  Written to Google Sheet with Date Added stamp
+          → follows article to find direct "Apply Now" link
+          → Gemini scores it 1–10
+          → if score ≥ 5: written to Google Sheet
+Day 7:    Included in Sunday weekly email digest
 Day 23:   Hard-removed from sheet by cleanup.py (STALE_DAYS = 23)
 ```
-
-Every entry in the sheet is guaranteed to be **less than 23 days old** and from a **post no older than 3 days** when it was scraped. Nothing lingers.
-
----
-
-## Why ScoutBot Exists
-
-Opportunities for Nigerian students are scattered across dozens of websites with no single reliable source. ScoutBot runs quietly in the background, finds new opportunities as they appear, logs them into a shared spreadsheet, and delivers them straight to people's inboxes — once a week, clean and fresh.
-
-**This is a bot, not a web app.** No dashboard, no login page, no frontend — just an automated Python system that works independently of any platform.
 
 ---
 
 ## How It Works
 
 ```
-Every day at 07:00 WAT (GitHub Actions):
-  1. scrapy crawl opportunities  →  scrapes 8 RSS feeds → scores with Gemini → writes to Nigeria / International tab
+Every day at 07:00 WAT (GitHub Actions — scoutbot.yml):
+  1. scrapy crawl opportunities  →  scrapes RSS feeds → extracts apply links
+                                 →  scores each with Gemini → writes to Nigeria / International tab
   2. python run.py --cleanup     →  removes entries older than 23 days or with past deadlines
 
-Every Sunday 10:00 WAT (GitHub Actions):
+Every Sunday 10:00 WAT (GitHub Actions — digest.yml):
   3. python run.py --notify      →  sends weekly digest (last 7 days only) to all subscribers
-  4. python telegram_notify.py   →  sends Telegram channel digest
+
+1st of every month 07:30 WAT (GitHub Actions — admin-report.yml):
+  4. python admin_report.py      →  sends monthly stats report to project lead
 ```
+
+---
+
+## Why ScoutBot Exists
+
+Opportunities for Nigerian students are scattered across dozens of websites with no single reliable source. ScoutBot runs quietly in the background, finds new opportunities as they appear, extracts direct application links, scores them with AI, and delivers them straight to people's inboxes — once a week, clean and fresh.
+
+**This is a bot, not a web app.** No dashboard, no login page, no frontend — just an automated Python system that works independently of any platform.
 
 ---
 
@@ -100,30 +104,55 @@ Every Sunday 10:00 WAT (GitHub Actions):
 ScoutBot/
 ├── scoutbot/
 │   ├── spiders/
-│   │   └── opportunities_spider.py  ← All scraping logic + RSS parsing
+│   │   └── opportunities_spider.py  ← All scraping + RSS + apply link extraction
 │   ├── pipelines.py                 ← DedupePipeline → GeminiPipeline → SheetsPipeline
 │   ├── items.py                     ← Scrapy item definition
 │   └── settings.py                  ← Scrapy settings + pipeline order
 ├── notify.py                        ← Weekly email digest sender
 ├── cleanup.py                       ← Removes expired sheet entries (23-day cap)
+├── admin_report.py                  ← Monthly stats email to project lead
 ├── welcome.py                       ← Welcome email for new subscribers
-├── announce.py                      ← One-time announcement emails
 ├── run.py                           ← CLI entry point
 ├── requirements.txt
 ├── .env.example                     ← Copy to .env and fill in credentials
 ├── docs/
-│   └── AI_IMPLEMENTATION.md         ← Full Gemini AI pipeline documentation
+│   ├── AI_IMPLEMENTATION.md         ← Full Gemini AI pipeline documentation
+│   └── VOLUNTEER_ROLES.md           ← Step-by-step guide for all volunteer roles
 ├── .github/
 │   └── workflows/
 │       ├── scoutbot.yml             ← Daily 07:00 WAT scrape
 │       ├── digest.yml               ← Sunday 10:00 WAT weekly email
-│       ├── welcome.yml              ← Monthly welcome email
+│       ├── admin-report.yml         ← Monthly 07:30 WAT stats report
+│       ├── welcome.yml              ← Monthly welcome email to new subscribers
 │       └── pytest.yml               ← CI tests on every push/PR
 ├── CHANGELOG.md                     ← Full project history
 ├── CONTRIBUTING.md
 ├── CODE_REFERENCE.md
 └── ENGINEERING.md
 ```
+
+---
+
+## 🤝 Volunteer — Help Us Grow ScoutBot
+
+ScoutBot is maintained by a small founding team and open-source contributors. Several roles are open to volunteers — no application required to get started.
+
+**[→ Full volunteer guide: docs/VOLUNTEER_ROLES.md](./docs/VOLUNTEER_ROLES.md)**
+
+| Role | Time/week | Skills needed | How to start |
+|------|-----------|---------------|--------------|
+| **Source Hunter** | 1–3 hrs | Browser, no coding | [Open issue: "volunteer: Source Hunter"](https://github.com/TechHub-Extensions/ScoutBot/issues/new) |
+| **Community Ambassador** | 1–2 hrs | Writing, social media | Start immediately — no approval needed |
+| **Issue Triager** | 30 min | Basic GitHub | Open an intro issue first |
+| **Data Curator** | 1–2 hrs | Google Sheets | Open an intro issue first |
+| **Documentation Writer** | 2–4 hrs | Markdown | Open an intro issue first |
+| **Source Monitor** | 30 min | Browser + GitHub | [Open issue: "volunteer: Source Monitor"](https://github.com/TechHub-Extensions/ScoutBot/issues/new) |
+| **Email Designer** | 2–5 hrs | HTML + CSS | Open an intro issue first |
+| **PR Reviewer** | 1–2 hrs | Python | Open an intro issue first |
+| **QA Tester** | 2–4 hrs | Python, CLI | Open an intro issue first |
+| **Subscriber Support** | 30 min | Gmail | Open an intro issue first |
+
+To apply: open a GitHub issue titled `volunteer: interested in [Role Name]`. Include your name, location, why you want the role, and available hours.
 
 ---
 
@@ -136,9 +165,11 @@ pip install -r requirements.txt
 cp .env.example .env
 # Fill in .env with your credentials (see ENGINEERING.md)
 
-python run.py --scrape     # Scrape only (no email)
-python run.py --cleanup    # Remove expired entries only
-python run.py --notify     # Send digest email only
+python run.py --scrape      # Scrape only (no email)
+python run.py --cleanup     # Remove expired entries only
+python run.py --notify      # Send digest email only
+python run.py --dry-run     # Build email preview without sending (writes email_preview.html)
+python admin_report.py      # Send monthly stats report manually
 ```
 
 ### Required `.env` variables
@@ -177,11 +208,14 @@ Once secrets are set, the bot runs on schedule with **no Replit, no VPS, no cron
 
 ## 💛 Support ScoutBot
 
-ScoutBot is open source and free for every user. We are Nigerian students building this with zero budget.
+ScoutBot is open source and free for every subscriber. We are Nigerian students building this with zero budget.
 
-**Fundraising goal:** ₦2,000,000 (~$1,500 USD) for Twitter/X advertising to reach 4,000 Nigerian students.
+**[→ Support on Paystack (₦1,000)](https://paystack.com/pay/scoutbot)**
+**[→ Support on Ko-fi (international)](https://ko-fi.com/scoutbot)**
 
-📄 **[ScoutBot — Fundraising Brief (Google Doc)](https://docs.google.com/document/d/1SqxaAg4tvuWp3LgGzqSSSw4_bxBWHmgmrQ9IyyKHtE8/edit)**
+Organisations can sponsor a featured placement in the Sunday digest for **₦5,000/placement** — reaches 500+ students directly. Email [kamsirichard1960@gmail.com](mailto:kamsirichard1960@gmail.com?subject=ScoutBot%20Sponsorship) to enquire.
+
+📄 **[ScoutBot Fundraising Brief (Google Doc)](https://docs.google.com/document/d/1SqxaAg4tvuWp3LgGzqSSSw4_bxBWHmgmrQ9IyyKHtE8/edit)**
 
 ---
 
@@ -204,6 +238,7 @@ ScoutBot is open source and welcomes contributions from developers of all skill 
 - 🐛 **[Open an Issue](https://github.com/TechHub-Extensions/ScoutBot/issues)** — report a broken source, a bug, or a feature idea
 - 🔀 **Fork and submit a PR** — add sources, fix bugs, improve email design
 - 📣 **Share** with Nigerian student WhatsApp groups, Discord servers, Twitter/X
+- 🤝 **Volunteer** — see the [volunteer guide](./docs/VOLUNTEER_ROLES.md) for non-coding roles
 
 **Ready to code?** Start with issues labelled [`good first issue`](https://github.com/TechHub-Extensions/ScoutBot/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
