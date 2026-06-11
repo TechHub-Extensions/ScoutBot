@@ -557,8 +557,9 @@ class OpportunitiesSpider(scrapy.Spider):
         extract a real, direct application link from the article page itself.
 
         Items on Cloudflare-protected sites will fail to load and are dropped
-        automatically. Items whose article pages contain no findable apply link
-        are also dropped (require_apply_link=True).
+        automatically. When no direct apply link is found on an article page,
+        the article URL itself is used — Gemini scoring (MIN_SCORE=5) is the
+        quality gate, not the presence of a direct apply button.
         """
         import xml.etree.ElementTree as ET
 
@@ -620,7 +621,6 @@ class OpportunitiesSpider(scrapy.Spider):
                 errback=self.log_skipped,
                 meta={
                     "forced_range": response.meta.get("forced_range", "National"),
-                    "require_apply_link": True,
                     "rss_title": title,
                 },
                 dont_filter=False,
