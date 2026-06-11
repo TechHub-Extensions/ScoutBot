@@ -1,13 +1,17 @@
 """
 ScoutBot — Telegram Digest
 
-Sends the weekly opportunity digest as a text message to a Telegram
-channel or group.  Requires two environment variables:
+Sends new opportunities as Markdown-formatted messages to a Telegram
+channel or group chat.
 
+Requires two environment variables (add to .env and GitHub Secrets):
   TELEGRAM_BOT_TOKEN  — from @BotFather
-  TELEGRAM_CHAT_ID    — channel/group ID (e.g. -100xxxxxxxxxx)
+  TELEGRAM_CHAT_ID    — channel/group ID  e.g. -100xxxxxxxxxx
+                        (find it by adding @userinfobot to your channel)
 
-Added by tsouk88 (PR #42 / #43).
+Channel: https://t.me/ScoutBotOpportunities
+
+Added by tsouk88 (PRs #42, #43, #45).
 """
 
 import os
@@ -32,7 +36,7 @@ def send_telegram_message(token, chat_id, text):
         "parse_mode": "Markdown",
     })
     if not response.ok:
-        logger.error(f"Telegram error: {response.status_code} {response.text}")
+        logger.error("Telegram error: %s %s", response.status_code, response.text)
     else:
         logger.info("Telegram message sent successfully.")
 
@@ -40,31 +44,43 @@ def send_telegram_message(token, chat_id, text):
 def build_telegram_text(nigeria_opps, intl_opps):
     def format_section(emoji, label, opps):
         if not opps:
-            return f"{emoji} *{label}* — No new opportunities this week.\n"
-        lines = [f"{emoji} *{label}* — {len(opps)} this week\n"]
+            return f"{emoji} *{label}* — No new opportunities this week.
+"
+        lines = [f"{emoji} *{label}* — {len(opps)} this week
+"]
         for opp in opps:
             title    = opp.get("Title", "Untitled")
             link     = opp.get("Application Link", "#")
             deadline = opp.get("Deadline", "")
-            dl = f"\n  Due: {deadline}" if deadline else ""
-            lines.append(f"• [{title}]({link}){dl}\n")
-        return "\n".join(lines)
+            dl = f"
+  Due: {deadline}" if deadline else ""
+            lines.append(f"• [{title}]({link}){dl}
+")
+        return "
+".join(lines)
 
     nigeria_text = format_section("🇳🇬", "Nigeria", nigeria_opps)
     intl_text    = format_section("🌍", "International", intl_opps)
-    return f"{nigeria_text}\n---\n{intl_text}"
+    return f"{nigeria_text}
+---
+{intl_text}"
 
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        logger.error("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set.")
+        logger.error(
+            "TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set. "
+            "Add them to .env and GitHub Secrets."
+        )
         return
 
     nigeria_opps = fetch_recent_from_tab("Nigeria",       limit=25)
     intl_opps    = fetch_recent_from_tab("International", limit=25)
 
     if not nigeria_opps and not intl_opps:
-        logger.warning("telegram: No recent opportunities. No message sent.")
+        logger.warning("No recent opportunities — no Telegram message sent.")
         return
 
     text = build_telegram_text(nigeria_opps, intl_opps)
@@ -72,5 +88,4 @@ def main():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     main()
