@@ -2,12 +2,10 @@
 Scrapy pipelines — ordered by priority:
 
   1. DedupePipeline  (100) — drops items whose link is already in the sheet
-  2. GeminiPipeline  (150) — scores with Gemini; drops score < 5; adds AI blurb
-                             (imported from scoutbot/gemini_scoring.py)
-  3. SheetsPipeline  (200) — writes to Nigeria or International tab
+  2. SheetsPipeline  (200) — writes to Nigeria or International tab
 
-Sheet columns (6 total):
-  Title | Category | Application Link | Deadline | Date Added | AI Blurb
+Sheet columns (5 total):
+  Title | Category | Application Link | Deadline | Date Added
 """
 
 import logging
@@ -17,9 +15,6 @@ from datetime import date
 from dotenv import load_dotenv
 from scrapy.exceptions import DropItem
 
-# GeminiPipeline lives in its own file for visibility — import it here
-from scoutbot.gemini_scoring import GeminiPipeline  # noqa: F401  (re-exported for settings.py)
-
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -27,16 +22,14 @@ logger = logging.getLogger(__name__)
 SPREADSHEET_ID       = os.getenv("SPREADSHEET_ID", "1pLCEvDI1btjtOe1H3VgzCqpC6R0nRsEtnTwQhY6BqmU")
 SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "service_account.json")
 
-# ── Clean 6-column sheet schema ───────────────────────────────────────────────
 SHEET_HEADERS = [
-    "Title",             # A (col 0)
-    "Category",          # B (col 1)
-    "Application Link",  # C (col 2)  ← direct apply URL
-    "Deadline",          # D (col 3)
-    "Date Added",        # E (col 4)
-    "AI Blurb",          # F (col 5)  ← Gemini-generated, empty if key not set
+    "Title",             # A
+    "Category",          # B
+    "Application Link",  # C  ← direct org apply URL
+    "Deadline",          # D
+    "Date Added",        # E
 ]
-LINK_COL_INDEX  = 2   # "Application Link" is column C (0-based)
+LINK_COL_INDEX = 2
 
 TAB_NIGERIA       = "Nigeria"
 TAB_INTERNATIONAL = "International"
@@ -66,50 +59,30 @@ def _get_sheet_client():
 
 
 def _ensure_tab(spreadsheet, name):
-    """Return the worksheet, creating it with correct headers if it does not exist.
-    If the tab exists with the old 13-column schema, migrate it: clear data rows
-    and set new headers so all future rows use the clean 6-column format.
-    Old rows with wrong links are removed as part of this migration.
-    """
     try:
         ws = spreadsheet.worksheet(name)
     except Exception:
         ws = spreadsheet.add_worksheet(title=name, rows=2000, cols=len(SHEET_HEADERS))
         ws.append_row(SHEET_HEADERS)
-        logger.info("SheetsPipeline: Created tab '%s' with new 6-column schema.", name)
+        logger.info("SheetsPipeline: Created tab '%s'.", name)
         return ws
 
-    # Check if headers already match the new schema
-    existing_headers = ws.row_values(1)
-    if existing_headers == SHEET_HEADERS:
-        return ws   # already migrated
+    existing = ws.row_values(1)
+    if existing[:len(SHEET_HEADERS)] == SHEET_HEADERS:
+        return ws
 
-    # Old schema detected — migrate: clear all rows and set new headers
-    logger.info(
-        "SheetsPipeline: Tab '%s' has old schema (%d cols) — migrating to 6-column schema. "
-        "Existing rows cleared (they had wrong application links anyway).",
-        name, len(existing_headers),
-    )
-    ws.clear()
-    ws.append_row(SHEET_HEADERS)
+    # Headers mismatch — update header row only (preserve data rows)
+    ws.update("A1", [SHEET_HEADERS])
+    logger.info("SheetsPipeline: Updated headers on tab '%s'.", name)
     return ws
 
 
-# ---------------------------------------------------------------------------
-# 1. DedupePipeline
-# ---------------------------------------------------------------------------
-
 class DedupePipeline:
-    """Drops duplicate items before Gemini scoring.
-
-    Pre-loads existing sheet links so items already in the sheet never
-    reach GeminiPipeline — avoids burning free-tier Gemini quota on
-    items that will be discarded anyway.
-    """
+    """Drops items whose application_link already exists in the sheet."""
 
     def __init__(self):
-        self.seen     = set()   # within-run dedup
-        self.existing = set()   # pre-loaded from live sheet
+        self.seen     = set()
+        self.existing = set()
 
     @classmethod
     def from_crawler(cls, crawler):
@@ -127,9 +100,7 @@ class DedupePipeline:
                             self.existing.add(row[LINK_COL_INDEX].strip())
                 except Exception:
                     pass
-            logger.info(
-                "DedupePipeline: %d existing links pre-loaded.", len(self.existing),
-            )
+            logger.info("DedupePipeline: %d existing links pre-loaded.", len(self.existing))
         except Exception as exc:
             logger.warning("DedupePipeline: Could not pre-load sheet links — %s", exc)
 
@@ -141,18 +112,8 @@ class DedupePipeline:
         return item
 
 
-# ---------------------------------------------------------------------------
-# 3. SheetsPipeline  (GeminiPipeline is #2, imported from gemini_scoring.py)
-# ---------------------------------------------------------------------------
-
 class SheetsPipeline:
-    """Writes opportunities to Nigeria or International tab.
-
-    Uses the clean 6-column schema: Title | Category | Application Link |
-    Deadline | Date Added | AI Blurb.
-
-    Migrates old 13-column tabs automatically on first run.
-    """
+    """Writes opportunities to Nigeria or International tab."""
 
     def __init__(self):
         self.nigeria_ws       = None
@@ -171,15 +132,11 @@ class SheetsPipeline:
             ss     = client.open_by_key(SPREADSHEET_ID)
             self.nigeria_ws       = _ensure_tab(ss, TAB_NIGERIA)
             self.international_ws = _ensure_tab(ss, TAB_INTERNATIONAL)
-
             for ws in (self.nigeria_ws, self.international_ws):
                 for row in ws.get_all_values()[1:]:
                     if len(row) > LINK_COL_INDEX and row[LINK_COL_INDEX].strip():
                         self.existing_links.add(row[LINK_COL_INDEX].strip())
-
-            logger.info(
-                "SheetsPipeline: %d existing entries loaded.", len(self.existing_links),
-            )
+            logger.info("SheetsPipeline: %d existing entries loaded.", len(self.existing_links))
         except Exception as exc:
             logger.error("SheetsPipeline: Failed to connect — %s", exc)
 
@@ -190,12 +147,11 @@ class SheetsPipeline:
 
         today = date.today().isoformat()
         row = [
-            (item.get("title")    or "").strip(),           # A: Title
-            (item.get("category") or "Opportunity").strip(), # B: Category
-            link,                                            # C: Application Link
-            (item.get("deadline") or "").strip(),            # D: Deadline
-            today,                                           # E: Date Added
-            (item.get("ai_blurb") or "").strip(),            # F: AI Blurb
+            (item.get("title")    or "").strip(),
+            (item.get("category") or "Opportunity").strip(),
+            link,
+            (item.get("deadline") or "").strip(),
+            today,
         ]
 
         if (item.get("range") or "").strip() == "International":
