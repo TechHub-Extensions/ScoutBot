@@ -285,6 +285,13 @@ Every merged contribution is permanently credited in [CONTRIBUTORS.md](./CONTRIB
 <table>
   <tr>
     <td align="center" width="140">
+      <a href="https://github.com/kamsirichard">
+        <img src="https://github.com/kamsirichard.png" width="60" style="border-radius:50%" /><br/>
+        <b>kamsirichard</b>
+      </a><br/>
+      Founder — architecture,<br/>scraping, delivery,<br/>182 commits
+    </td>
+    <td align="center" width="140">
       <a href="https://github.com/olamidefasogbon">
         <img src="https://github.com/olamidefasogbon.png" width="60" style="border-radius:50%" /><br/>
         <b>olamidefasogbon</b>
@@ -292,32 +299,18 @@ Every merged contribution is permanently credited in [CONTRIBUTORS.md](./CONTRIB
       30 PRs — WhatsApp delivery<br/>engine, Campus Lead Portal,<br/>link validation
     </td>
     <td align="center" width="140">
-      <a href="https://github.com/saurabhhhcodes">
-        <img src="https://github.com/saurabhhhcodes.png" width="60" style="border-radius:50%" /><br/>
-        <b>saurabhhhcodes</b>
-      </a><br/>
-      3 PRs — dry-run, mobile<br/>email, deadline extraction
-    </td>
-    <td align="center" width="140">
       <a href="https://github.com/tsouk88">
         <img src="https://github.com/tsouk88.png" width="60" style="border-radius:50%" /><br/>
         <b>tsouk88</b>
       </a><br/>
-      4 PRs — Telegram channel,<br/>new sources, auto-label
-    </td>
-    <td align="center" width="140">
-      <a href="https://github.com/prajjukorban">
-        <img src="https://github.com/prajjukorban.png" width="60" style="border-radius:50%" /><br/>
-        <b>prajjukorban</b>
-      </a><br/>
-      1 PR — deadline<br/>extraction patterns
+      Telegram channel,<br/>new sources, auto-label
     </td>
     <td align="center" width="140">
       <a href="https://github.com/Arnish-val">
         <img src="https://github.com/Arnish-val.png" width="60" style="border-radius:50%" /><br/>
         <b>Arnish-val</b>
       </a><br/>
-      2 PRs — CI badges,<br/>pytest workflow
+      CI badges,<br/>pytest workflow
     </td>
   </tr>
 </table>
