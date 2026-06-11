@@ -11,7 +11,6 @@ RANDOMIZE_DOWNLOAD_DELAY = True
 DEFAULT_REQUEST_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
-    # Real browser UA so sites don't serve Cloudflare challenge pages
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -21,7 +20,6 @@ DEFAULT_REQUEST_HEADERS = {
 
 ITEM_PIPELINES = {
     "scoutbot.pipelines.DedupePipeline": 100,
-    "scoutbot.pipelines.GeminiPipeline": 150,
     "scoutbot.pipelines.SheetsPipeline": 200,
 }
 
