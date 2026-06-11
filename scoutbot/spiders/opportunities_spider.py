@@ -93,14 +93,23 @@ def _infer_industry(text: str) -> str:
 
 
 def _extract_deadline(text: str) -> str:
+    # Rolling / open-ended — check before date patterns to avoid false matches
+    if re.search(r"\brolling admissions?\b|\bapplications reviewed monthly\b|\breviewed monthly\b", text, re.IGNORECASE):
+        return "Rolling"
+
     month = (
         r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?"
         r"|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?"
         r"|nov(?:ember)?|dec(?:ember)?)"
     )
     for p in [
-        rf"(?:deadline|closes?|apply\s+by|closing\s+date)[:\s]+(\d{{1,2}}(?:st|nd|rd|th)?\s+{month}\s+\d{{4}})",
-        rf"(?:deadline|closes?|apply\s+by)[:\s]+({month}\s+\d{{1,2}},?\s*\d{{4}})",
+        # MM/DD/YYYY numeric (saurabhhhcodes #39, tsouk88 #40)
+        r"(?:deadline|closes?|apply\s+by|applications?\s+close(?:s)?\s+on|accepted\s+until)[:\s]+(\d{1,2}/\d{1,2}/\d{4})",
+        r"(\d{1,2}/\d{1,2}/\d{4})",
+        # Named month with trigger phrases
+        rf"(?:deadline|closes?|apply\s+by|closing\s+date|applications?\s+close(?:s)?\s+on|accepted\s+until)[:\s]+(\d{{1,2}}(?:st|nd|rd|th)?\s+{month}\s+\d{{4}})",
+        rf"(?:deadline|closes?|apply\s+by|closing\s+date)[:\s]+({month}\s+\d{{1,2}},?\s*\d{{4}})",
+        # Standalone date patterns
         rf"(\d{{1,2}}(?:st|nd|rd|th)?\s+{month}\s+\d{{4}})",
         rf"({month}\s+\d{{1,2}},?\s*\d{{4}})",
     ]:
