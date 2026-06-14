@@ -1,0 +1,50 @@
+name: _Telegram Only (one-off)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  telegram:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore Google service account JSON
+        env:
+          SA_JSON:     ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SA_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+        run: |
+          if [ -n "$SA_JSON_B64" ]; then
+            echo "$SA_JSON_B64" | base64 -d > service_account.json
+          elif [ -n "$SA_JSON" ]; then
+            printf '%s' "$SA_JSON" > service_account.json
+          else
+            echo "ERROR: No service account secret set." >&2; exit 1
+          fi
+          python -c "import json; json.load(open('service_account.json'))"
+
+      - name: Build .env
+        run: |
+          cat > .env <<EOF
+          SENDER_EMAIL=${{ secrets.SENDER_EMAIL }}
+          GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
+          SPREADSHEET_ID=${{ secrets.SPREADSHEET_ID }}
+          FORM_SHEET_ID=1dFcnVvQjWkuYhN1rplICTY0j88KgvGqQ3FzYId2ru4s
+          GOOGLE_SERVICE_ACCOUNT_JSON=service_account.json
+          RECIPIENT_EMAILS=${{ secrets.RECIPIENT_EMAILS }}
+          TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}
+          EOF
+
+      - name: Send Telegram digest
+        run: python telegram_notify.py
