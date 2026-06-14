@@ -44,26 +44,19 @@ def send_telegram_message(token, chat_id, text):
 def build_telegram_text(nigeria_opps, intl_opps):
     def format_section(emoji, label, opps):
         if not opps:
-            return f"{emoji} *{label}* — No new opportunities this week.
-"
-        lines = [f"{emoji} *{label}* — {len(opps)} this week
-"]
+            return f"{emoji} *{label}* — No new opportunities this week.\n"
+        lines = [f"{emoji} *{label}* — {len(opps)} this week\n"]
         for opp in opps:
             title    = opp.get("Title", "Untitled")
             link     = opp.get("Application Link", "#")
             deadline = opp.get("Deadline", "")
-            dl = f"
-  Due: {deadline}" if deadline else ""
-            lines.append(f"• [{title}]({link}){dl}
-")
-        return "
-".join(lines)
+            dl = f"\n  Due: {deadline}" if deadline else ""
+            lines.append(f"• [{title}]({link}){dl}\n")
+        return "\n".join(lines)
 
     nigeria_text = format_section("🇳🇬", "Nigeria", nigeria_opps)
     intl_text    = format_section("🌍", "International", intl_opps)
-    return f"{nigeria_text}
----
-{intl_text}"
+    return f"{nigeria_text}\n---\n{intl_text}"
 
 
 def main():
