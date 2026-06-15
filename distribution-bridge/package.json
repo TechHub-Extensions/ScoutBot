@@ -2,7 +2,7 @@
   "name": "scoutbot-distribution-backend",
   "version": "1.0.0",
   "description": "ScoutBot Distribution Layer — Session Manager",
-  "main": "server.js",
+  "main": "whatsapp.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
