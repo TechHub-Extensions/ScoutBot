@@ -35,6 +35,7 @@ db.exec(`
     invite_link TEXT    NOT NULL UNIQUE,
     group_jid   TEXT    UNIQUE,
     group_name  TEXT,
+    preference  TEXT    DEFAULT 'both',
     joined_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
     is_active   INTEGER DEFAULT 1
   );
@@ -149,7 +150,7 @@ app.get("/groups/count", (req, res) => {
 
 // POST /register — accept campus + invite link, join group, save JID, and fire Teaser
 app.post("/register", async (req, res) => {
-  const { campus_name, invite_link } = req.body;
+  const { campus_name, invite_link, preference = 'both' } = req.body;
 
   if (!campus_name || !invite_link) {
     return res.status(400).json({ error: "campus_name and invite_link are required." });
@@ -174,8 +175,8 @@ app.post("/register", async (req, res) => {
 
   if (!clientReady) {
     db.prepare(
-      "INSERT OR IGNORE INTO campus_groups (campus_name, invite_link) VALUES (?, ?)"
-    ).run(campus_name, invite_link);
+      "INSERT OR IGNORE INTO campus_groups (campus_name, invite_link, preference) VALUES (?, ?, ?)"
+    ).run(campus_name, invite_link, preference);
 
     return res.status(202).json({
       success: false,
@@ -194,23 +195,24 @@ app.post("/register", async (req, res) => {
     } catch (_) {}
 
     db.prepare(
-      `INSERT INTO campus_groups (campus_name, invite_link, group_jid, group_name)
-       VALUES (?, ?, ?, ?)
+      `INSERT INTO campus_groups (campus_name, invite_link, group_jid, group_name, preference)
+       VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(invite_link) DO UPDATE SET
          group_jid  = excluded.group_jid,
-         group_name = excluded.group_name`
-    ).run(campus_name, invite_link, groupId, groupName);
+         group_name = excluded.group_name,
+         preference = excluded.preference`
+    ).run(campus_name, invite_link, groupId, groupName, preference);
 
     console.log(`✅ Joined group: ${groupName} (${groupId}) for campus: ${campus_name}`);
 
     // 🚀 FIRE HCI WELCOME & TEASER IMMEDIATELY AFTER JOINING
-    const welcomeMsg = 
+    const welcomeMsg =
       "*Hi everyone! I'm ScoutBot* 🤖\n\n" +
-      "I'm your new automated assistant, here to drop fresh opportunities directly into this chat so you never miss out."+
-      "*What I'll be bringing you:*"+
-      "🎓 Scholarships & Fellowships"+
-      "💻 Tech Internships"+
-      "🚀 Career Growth Resources"+
+      "I'm your new automated assistant, here to drop fresh opportunities directly into this chat so you never miss out.\n\n" +
+      "*What I'll be bringing you:*\n" +
+      "🎓 Scholarships & Fellowships\n" +
+      "💻 Tech Internships\n" +
+      "🚀 Career Growth Resources\n\n" +
       "I operate in the background and check for new links every few hours. Keep your notifications on and let the opportunities come to you!";
     
     await waClient.sendMessage(groupId, welcomeMsg);
@@ -251,8 +253,8 @@ app.post("/register", async (req, res) => {
     console.error("Error joining group:", err.message);
 
     db.prepare(
-      "INSERT OR IGNORE INTO campus_groups (campus_name, invite_link) VALUES (?, ?)"
-    ).run(campus_name, invite_link);
+      "INSERT OR IGNORE INTO campus_groups (campus_name, invite_link, preference) VALUES (?, ?, ?)"
+    ).run(campus_name, invite_link, preference);
 
     return res.status(500).json({
       error: "Failed to join WhatsApp group.",
@@ -278,7 +280,7 @@ app.delete("/groups/:id", (req, res) => {
 // GET /groups/export — export JIDs as JSON
 app.get("/groups/export", (req, res) => {
   const jids = db
-    .prepare("SELECT group_jid, campus_name, group_name FROM campus_groups WHERE is_active = 1 AND group_jid IS NOT NULL")
+    .prepare("SELECT group_jid, campus_name, group_name, preference FROM campus_groups WHERE is_active = 1 AND group_jid IS NOT NULL")
     .all();
   res.json(jids);
 });
