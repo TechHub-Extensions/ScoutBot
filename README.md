@@ -24,7 +24,9 @@ No app, no login, no fee. Fill the form once and you're on the list.
 
 ---
 
-### 2 — WhatsApp Campus Delivery (filtered by level)
+### 2 — WhatsApp Campus Delivery V2 (filtered by level)
+
+> 🆕 **V2 released June 2026** — graduate-level filtering added, Nigerian timezone accuracy fixed, and portal relaunched at [scout-bott.vercel.app](https://scout-bott.vercel.app).
 
 Campus leads can register their WhatsApp group to receive opportunities **automatically, filtered by academic level**:
 
@@ -35,13 +37,13 @@ Campus leads can register their WhatsApp group to receive opportunities **automa
 | **Graduate, Masters & PhD only** | Postgraduate scholarships and fellowships |
 
 **How to register your campus group:**
-1. Open the **[Campus Lead Portal →](https://scoutbot-portal.vercel.app)** *(link will be updated — see note below)*
+1. Open the **[Campus Lead Portal →](https://scout-bott.vercel.app)** *(link will be updated — see note below)*
 2. Paste your WhatsApp group invite link (`chat.whatsapp.com/...`)
 3. Select which type of opportunities your group wants to receive
 4. ScoutBot joins your group automatically
 5. Make **+234 816 449 9922** (ScoutBot) an Admin so it can post
 
-> 📌 **Portal link update in progress** — we've emailed the portal owner for the latest URL. Check back here or open an issue if you need it urgently.
+
 
 ---
 
@@ -64,7 +66,7 @@ You'll receive the same weekly digest of Nigeria 🇳🇬 and International 🌍
 - 🔍 **Scrapes 21+ direct org pages daily** — checks PTDF, NDDC, NNPC, MTN Foundation, Tony Elumelu Foundation, Commonwealth Scholarships, Chevening, Fulbright, World Bank, AfDB, AU, UNDP, UNICEF, British Council, and more
 - 🔗 **Direct org application links only** — every link goes to the actual organisation's apply page, never a news aggregator or redirect URL
 - 📊 **Two separate tabs**: Nigeria 🇳🇬 and International 🌍 — never mixed
-- 📱 **WhatsApp campus delivery** — campus leads register their group; opportunities arrive filtered by academic level
+- 📱 **WhatsApp campus delivery V2** — campus leads register their group at [scout-bott.vercel.app](https://scout-bott.vercel.app); opportunities arrive filtered by academic level (undergrad / grad / both), times shown in Nigerian timezone
 - 📣 **Telegram channel** — real-time posts as new opportunities are discovered
 - 🧹 **Auto-cleans daily** — entries removed when closed, past deadline, or older than 23 days
 - 📧 **One email per week** — Sunday digest with only opportunities added in the last 7 days, sent to 500+ subscribers
@@ -76,7 +78,7 @@ You'll receive the same weekly digest of Nigeria 🇳🇬 and International 🌍
 ## Accomplishments We're Proud Of
 
 - **500+ email subscribers** acquired organically through student WhatsApp groups and word-of-mouth — zero paid promotion
-- **WhatsApp campus delivery system** — built from scratch by [@olamidefasogbon](https://github.com/olamidefasogbon): a full distribution bridge that joins WhatsApp groups, filters opportunities by level, and broadcasts automatically
+- **WhatsApp campus delivery system V2** — built from scratch by [@olamidefasogbon](https://github.com/olamidefasogbon): a full distribution bridge that joins WhatsApp groups, filters opportunities by academic level (undergrad / grad / both), and broadcasts automatically. V2 adds graduate-level filtering, Nigerian timezone accuracy, and a relaunched portal at [scout-bott.vercel.app](https://scout-bott.vercel.app)
 - **Subscriber web portal** with real-time registration, QR code generation, and live ScoutBot status indicator
 - **Telegram integration** — built by [@tsouk88](https://github.com/tsouk88), extending delivery to a third channel with zero extra infrastructure
 - **Zero cost infrastructure** — entire stack runs free: GitHub Actions, Gmail SMTP, Google Sheets API
