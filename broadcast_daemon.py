@@ -21,7 +21,7 @@ SCOUT_DB = os.path.join(BRIDGE_DIR, 'scoutbot.db')
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def get_unseen_opportunities(group_jid):
+def get_unseen_opportunities(group_jid, preference='both'):
     """
     Fetches up to 3 fresh, unexpired opportunities that a SPECIFIC group has never seen.
     """
@@ -36,7 +36,15 @@ def get_unseen_opportunities(group_jid):
         cursor = conn.cursor()
 
         # 🚨 UPDATED: Broad SQL query to grab unseen, active/rolling links
-        cursor.execute("""
+        # Build preference filter clause
+        if preference == 'undergrad':
+            pref_clause = "AND (LOWER(title) NOT LIKE '%master%' AND LOWER(title) NOT LIKE '%phd%' AND LOWER(title) NOT LIKE '%postgrad%' AND LOWER(title) NOT LIKE '%doctoral%')"
+        elif preference == 'grad':
+            pref_clause = "AND (LOWER(title) LIKE '%master%' OR LOWER(title) LIKE '%phd%' OR LOWER(title) LIKE '%postgrad%' OR LOWER(title) LIKE '%fellowship%' OR LOWER(title) LIKE '%doctoral%')"
+        else:
+            pref_clause = ""  # 'both' — no filter
+
+        cursor.execute(f"""
             SELECT id, title, link, deadline 
             FROM pending_broadcasts 
             WHERE id NOT IN (
@@ -48,6 +56,7 @@ def get_unseen_opportunities(group_jid):
                 OR deadline = '' 
                 OR LOWER(deadline) LIKE '%rolling%'
             )
+            {pref_clause}
             ORDER BY RANDOM() 
         """, (group_jid,))
         
