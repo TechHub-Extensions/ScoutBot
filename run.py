@@ -65,10 +65,39 @@ def run_notify(dry_run=False):
     _run_notify(dry_run=dry_run)
 
 
+def run_broadcast():
+    """
+    Call broadcast.py (distribution-bridge) after scraping.
+    Reads the opportunities.json written by WhatsAppQueuePipeline and fans out
+    to every registered WhatsApp campus group via the Session Manager API.
+    Skips silently if broadcast.py is not present or SESSION_API_URL is unset.
+    """
+    broadcast_script = os.path.join(SCRIPT_DIR, "distribution-bridge", "broadcast.py")
+    if not os.path.exists(broadcast_script):
+        logger.info("run.py: distribution-bridge/broadcast.py not found — skipping WhatsApp broadcast.")
+        return
+
+    session_url = os.getenv("SESSION_API_URL", "").strip()
+    if not session_url:
+        logger.info("run.py: SESSION_API_URL not set — skipping WhatsApp broadcast.")
+        return
+
+    logger.info("run.py: Starting WhatsApp broadcast...")
+    result = subprocess.run(
+        [sys.executable, broadcast_script, "--source", "json"],
+        cwd=os.path.join(SCRIPT_DIR, "distribution-bridge"),
+    )
+    if result.returncode != 0:
+        logger.warning(f"run.py: broadcast.py exited with code {result.returncode} — check distribution-bridge logs.")
+    else:
+        logger.info("run.py: WhatsApp broadcast complete.")
+
+
 def full_pipeline():
     logger.info("run.py: === Full pipeline START ===")
     run_all_spiders()
     run_cleanup()
+    run_broadcast()
     run_notify(dry_run=False)
     logger.info("run.py: === Full pipeline COMPLETE ===")
 
