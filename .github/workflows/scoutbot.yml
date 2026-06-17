@@ -1,7 +1,7 @@
-name: ScoutBot — Scrape (Daily)
+name: ScoutBot — Scrape (Weekly, Sundays)
 
-# Scrapes all sources and removes expired entries once per day at 07:00 WAT.
-# Does NOT send the email digest — that runs separately on Sundays only.
+# Scrapes all sources and removes expired entries once per week on Sunday at 07:00 WAT.
+# Does NOT send the email digest — that runs separately (also Sundays, digest.yml).
 #
 # The spider refuses to add any opportunity whose source post is older than
 # 3 days (MAX_POST_AGE_DAYS), ensuring only fresh listings enter the sheet.
@@ -12,7 +12,7 @@ name: ScoutBot — Scrape (Daily)
 
 on:
   schedule:
-    - cron: '0 6 * * *'            # 07:00 WAT every day
+    - cron: '0 6 * * 0'            # 07:00 WAT every Sunday (UTC+1 → 06:00 UTC)
   workflow_dispatch:
 
 jobs:
