@@ -10,24 +10,18 @@ RANDOMIZE_DOWNLOAD_DELAY = True
 
 DEFAULT_REQUEST_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Language": "en",
+    # Reddit requires a descriptive User-Agent or it returns 429/403.
+    # Format: <platform>:<app ID>:<version> (by /u/<dev>)
     "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/125.0.0.0 Safari/537.36"
+        "python:scoutbot.opportunities-aggregator:v1.0 (by /u/scoutbot_ng)"
     ),
 }
 
 ITEM_PIPELINES = {
-    "scoutbot.pipelines.DedupePipeline":         100,
-    "scoutbot.pipelines.LinkValidationPipeline": 150,  # drops 404/DNS-dead links before sheet write
-    # "scoutbot.pipelines.GeminiPipeline":       155,  # Gemini AI scoring — see gemini_scoring.py
-    #   Removed from active pipeline: free-tier quota (1,500 req/day) was exhausted by test runs,
-    #   extending run times from ~2 min to 6–8 min due to 60s retry waits on HTTP 429.
-    #   Score distribution clustered 6–8 for nearly all items that passed keyword filters,
-    #   providing little additional signal. Code preserved in gemini_scoring.py for future use
-    #   if a paid tier or improved quota becomes available.
-    "scoutbot.pipelines.SheetsPipeline":         200,
+    "scoutbot.pipelines.DedupePipeline":        100,
+    "scoutbot.pipelines.SheetsPipeline":        200,
+    "scoutbot.pipelines.WhatsAppQueuePipeline": 300,
 }
 
 AUTOTHROTTLE_ENABLED = True
