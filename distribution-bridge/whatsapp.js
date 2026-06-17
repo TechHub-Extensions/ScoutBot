@@ -5,11 +5,23 @@
  */
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode");
-const Database = require("better-sqlite3");
+const { DatabaseSync: Database } = require("node:sqlite");
 const path = require("path");
 const fs = require("fs");
+const { execSync } = require("child_process");
 const express = require('express');
 const cors = require('cors');
+
+// Resolve system Chromium — works on Replit (NixOS) and any Linux server
+function resolveChromium() {
+  if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH;
+  try { return execSync("which chromium").toString().trim(); } catch (_) {}
+  try { return execSync("which chromium-browser").toString().trim(); } catch (_) {}
+  try { return execSync("which google-chrome").toString().trim(); } catch (_) {}
+  return null; // let puppeteer fall back to its bundled binary
+}
+const CHROMIUM_EXEC = resolveChromium();
+console.log(`🔍 Using Chromium: ${CHROMIUM_EXEC || "puppeteer default"}`);
  
 const app = express();
 
@@ -25,8 +37,8 @@ app.use(express.json());
 const DB_PATH = path.join(__dirname, "scoutbot.db");
 const db = new Database(DB_PATH);
 
-// 🚨 CRITICAL FIX: Enable Write-Ahead Logging to prevent SQLITE_BUSY lock crashes
-db.pragma('journal_mode = WAL');
+// Enable Write-Ahead Logging to prevent SQLITE_BUSY lock crashes
+db.exec("PRAGMA journal_mode = WAL");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS campus_groups (
@@ -58,26 +70,34 @@ let initializationError = null;
 function initWhatsApp() {
   console.log("🚀 Initializing WhatsApp client...");
 
+  const puppeteerConfig = {
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-accelerated-2d-canvas",
+      "--no-first-run",
+      "--no-zygote",
+      "--disable-gpu",
+    ],
+  };
+  if (CHROMIUM_EXEC) puppeteerConfig.executablePath = CHROMIUM_EXEC;
+
   waClient = new Client({
     authStrategy: new LocalAuth({ dataPath: path.join(__dirname, ".wwebjs_auth") }),
-    puppeteer: {
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-accelerated-2d-canvas",
-        "--no-first-run",
-        "--no-zygote",
-        "--disable-gpu",
-      ],
-    },
+    puppeteer: puppeteerConfig,
   });
 
   waClient.on("qr", async (qr) => {
-    console.log("📱 QR Code generated — scan with WhatsApp");
     qrCodeData = await qrcode.toDataURL(qr);
     clientReady = false;
+    // Print scannable QR to the console so it's visible in Replit workflow logs
+    console.log("\n📱 Scan this QR code with WhatsApp on your phone:");
+    console.log("   (Phone → WhatsApp → ⋮ Menu → Linked devices → Link a device)\n");
+    qrcode.toString(qr, { type: "terminal", small: true }, (err, str) => {
+      if (!err) console.log(str);
+    });
   });
 
   waClient.on("ready", () => {
