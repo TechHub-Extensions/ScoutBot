@@ -26,7 +26,7 @@ No app, no login, no fee. Fill the form once and you're on the list.
 
 ### 2 — WhatsApp Campus Delivery V2 (filtered by level)
 
-> 🆕 **V2 released June 2026** — graduate-level filtering added, Nigerian timezone accuracy fixed, and portal relaunched at [scout-bott.vercel.app](https://scout-bott.vercel.app).
+> 🆕 **V2 released June 2026** — graduate-level filtering added, Nigerian timezone accuracy fixed, and pipeline gap closed (issue #62).
 
 Campus leads can register their WhatsApp group to receive opportunities **automatically, filtered by academic level**:
 
@@ -37,13 +37,11 @@ Campus leads can register their WhatsApp group to receive opportunities **automa
 | **Graduate, Masters & PhD only** | Postgraduate scholarships and fellowships |
 
 **How to register your campus group:**
-1. Open the **[Campus Lead Portal →](https://scout-bott.vercel.app)** *(link will be updated — see note below)*
+1. Open the **[Campus Lead Portal →](https://scout-bott.vercel.app)**
 2. Paste your WhatsApp group invite link (`chat.whatsapp.com/...`)
 3. Select which type of opportunities your group wants to receive
 4. ScoutBot joins your group automatically
 5. Make **+234 816 449 9922** (ScoutBot) an Admin so it can post
-
-
 
 ---
 
@@ -52,8 +50,6 @@ Campus leads can register their WhatsApp group to receive opportunities **automa
 ScoutBot also publishes opportunities to a Telegram channel. No registration required — just join and get notified.
 
 **[→ Join the ScoutBot Telegram Channel](https://t.me/ScoutBotOpportunities)**
-
-You'll receive the same weekly digest of Nigeria 🇳🇬 and International 🌍 opportunities, posted directly to the channel.
 
 ---
 
@@ -66,23 +62,12 @@ You'll receive the same weekly digest of Nigeria 🇳🇬 and International 🌍
 - 🔍 **Scrapes 21+ direct org pages daily** — checks PTDF, NDDC, NNPC, MTN Foundation, Tony Elumelu Foundation, Commonwealth Scholarships, Chevening, Fulbright, World Bank, AfDB, AU, UNDP, UNICEF, British Council, and more
 - 🔗 **Direct org application links only** — every link goes to the actual organisation's apply page, never a news aggregator or redirect URL
 - 📊 **Two separate tabs**: Nigeria 🇳🇬 and International 🌍 — never mixed
-- 📱 **WhatsApp campus delivery V2** — campus leads register their group at [scout-bott.vercel.app](https://scout-bott.vercel.app); opportunities arrive filtered by academic level (undergrad / grad / both), times shown in Nigerian timezone
+- 📱 **WhatsApp campus delivery** — scraper automatically writes new items to `distribution-bridge/` after every run; `broadcast.py` fans them out to all registered campus groups
 - 📣 **Telegram channel** — real-time posts as new opportunities are discovered
 - 🧹 **Auto-cleans daily** — entries removed when closed, past deadline, or older than 23 days
 - 📧 **One email per week** — Sunday digest with only opportunities added in the last 7 days, sent to 500+ subscribers
-- 🚫 **Students only** — scholarships, fellowships, internships only. No startup/VC content.
-- ☁️ **Runs entirely on GitHub Actions** — no server, no Replit dependency, works 24/7 independently
-
----
-
-## Accomplishments We're Proud Of
-
-- **500+ email subscribers** acquired organically through student WhatsApp groups and word-of-mouth — zero paid promotion
-- **WhatsApp campus delivery system V2** — built from scratch by [@olamidefasogbon](https://github.com/olamidefasogbon): a full distribution bridge that joins WhatsApp groups, filters opportunities by academic level (undergrad / grad / both), and broadcasts automatically. V2 adds graduate-level filtering, Nigerian timezone accuracy, and a relaunched portal at [scout-bott.vercel.app](https://scout-bott.vercel.app)
-- **Subscriber web portal** with real-time registration, QR code generation, and live ScoutBot status indicator
-- **Telegram integration** — built by [@tsouk88](https://github.com/tsouk88), extending delivery to a third channel with zero extra infrastructure
-- **Zero cost infrastructure** — entire stack runs free: GitHub Actions, Gmail SMTP, Google Sheets API
-- **All links are direct org URLs** — no news.google.com, no redirects; every row in the sheet links to the actual application page
+- 🚫 **Students only** — scholarships, fellowships, internships only
+- ☁️ **Runs entirely on GitHub Actions** — no server dependency, works 24/7 independently
 
 ---
 
@@ -90,22 +75,86 @@ You'll receive the same weekly digest of Nigeria 🇳🇬 and International 🌍
 
 ```
 Every day at 07:00 WAT (GitHub Actions — scoutbot.yml):
-  1. scrapy crawl opportunities  →  checks 21+ org pages for open opportunities
-                                 →  extracts direct apply URLs
-                                 →  deduplicates against existing sheet entries
-                                 →  writes to Nigeria / International tab
 
-  2. python run.py --cleanup     →  removes entries older than 23 days or past deadline
+  1. scrapy crawl opportunities
+        │
+        ├─ DedupePipeline (100)
+        │    └─ drops links already seen this run
+        │
+        ├─ SheetsPipeline (200)
+        │    └─ writes new rows to Nigeria / International tab
+        │       skips links already in either tab
+        │
+        └─ WhatsAppQueuePipeline (300)          ← added in fix #62
+             └─ writes distribution-bridge/opportunities.json
+                writes distribution-bridge/whatsapp_queue.db
+                      (pending_broadcasts table)
+
+  2. python run.py --cleanup
+        └─ removes entries older than 23 days or past deadline
+
+  3. broadcast.py --source json                 ← triggered automatically
+        └─ reads opportunities.json
+        └─ sends each new item to every registered campus WhatsApp group
+        └─ skips if SESSION_API_URL is not set or whatsapp.js is not running
 
 Every Sunday 10:00 WAT (GitHub Actions — digest.yml):
-  3. python run.py --notify      →  sends weekly email digest (last 7 days) to all subscribers
 
-After each scrape (broadcast_daemon.py):
-  4. WhatsApp distribution bridge  →  sends new items to registered campus groups (filtered by level)
-  5. Telegram notification         →  posts new items to Telegram channel
+  4. python run.py --notify
+        └─ sends weekly email digest (last 7 days) to all subscribers
 
 1st of every month 07:30 WAT (GitHub Actions — admin-report.yml):
-  6. python admin_report.py      →  monthly stats report to project lead
+
+  5. python admin_report.py
+        └─ monthly stats report to project lead
+```
+
+---
+
+## WhatsApp Broadcast Setup
+
+The broadcast pipeline requires the `whatsapp.js` session manager to be running. Once it is, `broadcast.py` fires automatically after every scrape with no manual steps.
+
+### 1. Install Node dependencies
+
+```bash
+cd distribution-bridge
+npm install
+```
+
+### 2. Start the WhatsApp session manager
+
+```bash
+node whatsapp.js
+```
+
+On first run, a QR code appears in the terminal. Scan it with the ScoutBot WhatsApp number (+234 816 449 9922). The session is saved locally — you only scan once.
+
+### 3. Set `SESSION_API_URL` in your `.env`
+
+```env
+SESSION_API_URL=http://localhost:3001
+```
+
+This is the URL `broadcast.py` uses to reach `whatsapp.js`. The default port is `3001`.
+
+### 4. Run the full pipeline
+
+```bash
+python run.py
+```
+
+The order is: **scrape → cleanup → broadcast → email digest**. WhatsApp messages go out automatically after every scrape. If `SESSION_API_URL` is not set or `whatsapp.js` is not running, the broadcast step is skipped cleanly — nothing else breaks.
+
+### Broadcast manually
+
+```bash
+cd distribution-bridge
+python broadcast.py --source json          # from opportunities.json (default)
+python broadcast.py --source sheets        # pull directly from Google Sheets
+python broadcast.py --dry-run              # print messages without sending
+python broadcast.py --preview              # preview first message and exit
+python broadcast.py --limit 3             # broadcast only last 3 opportunities
 ```
 
 ---
@@ -123,16 +172,16 @@ ScoutBot/
 ├── scoutbot/
 │   ├── spiders/
 │   │   └── opportunities_spider.py  ← Scrapes 21+ org pages + scholars4dev RSS
-│   ├── pipelines.py                 ← DedupePipeline → SheetsPipeline
+│   ├── pipelines.py                 ← DedupePipeline → SheetsPipeline → WhatsAppQueuePipeline
 │   ├── items.py                     ← Scrapy item definition
 │   └── settings.py                  ← Scrapy settings + pipeline order
-├── distribution-bridge/             ← WhatsApp delivery system (by olamidefasogbon)
-│   ├── whatsapp.js                  ← whatsapp-web.js session manager
-│   ├── broadcast.py                 ← Sends items to registered campus groups
-│   └── broadcast_daemon.py          ← Daemon that queues and delivers broadcasts
-├── frontend-handler/                ← Campus Lead Portal (React + Vite)
-│   └── src/
-│       └── CampusLeadRegistration.jsx  ← Group registration + level filtering UI
+├── distribution-bridge/             ← WhatsApp delivery system
+│   ├── whatsapp.js                  ← whatsapp-web.js session manager (node)
+│   ├── broadcast.py                 ← Reads opportunities.json → sends to campus groups
+│   ├── import_data.py               ← One-off helper: load JSON into whatsapp_queue.db
+│   ├── opportunities.json           ← Written by WhatsAppQueuePipeline after every scrape
+│   ├── whatsapp_queue.db            ← SQLite queue (pending_broadcasts table)
+│   └── requirements.txt             ← Python deps for broadcast.py
 ├── notify.py                        ← Weekly email digest sender
 ├── cleanup.py                       ← Removes expired sheet entries (23-day cap)
 ├── admin_report.py                  ← Monthly stats email to project lead
@@ -177,6 +226,67 @@ Plus **scholars4dev.com** RSS as a supplementary feed when it has qualifying ite
 
 ---
 
+## Run Locally
+
+```bash
+git clone https://github.com/TechHub-Extensions/ScoutBot.git
+cd ScoutBot
+pip install -r requirements.txt
+cp .env.example .env
+# Fill in .env with your credentials (see ENGINEERING.md)
+
+python run.py              # Full pipeline: scrape → cleanup → broadcast → email
+python run.py --scrape     # Scrape only (no email)
+python run.py --cleanup    # Remove expired entries only
+python run.py --notify     # Send digest email only
+python run.py --dry-run    # Build email preview without sending
+python run.py --schedule   # Run on schedule: 07:00 + 19:00 WAT daily
+```
+
+### Required `.env` variables
+
+```env
+SENDER_EMAIL=your_gmail@gmail.com
+GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
+SPREADSHEET_ID=your_google_sheet_id
+GOOGLE_SERVICE_ACCOUNT_JSON=service_account.json
+RECIPIENT_EMAILS=email1@gmail.com,email2@gmail.com
+
+# WhatsApp broadcast (optional — skipped if not set)
+SESSION_API_URL=http://localhost:3001
+```
+
+---
+
+## GitHub Actions Setup (runs independently)
+
+Add these secrets under **Settings → Secrets → Actions**:
+
+| Secret | Description |
+|--------|-------------|
+| `SENDER_EMAIL` | Gmail address to send from |
+| `GMAIL_APP_PASSWORD` | Gmail App Password (not your main password) |
+| `SPREADSHEET_ID` | ID of the main Google Sheet |
+| `FORM_SHEET_ID` | ID of the subscriber form response sheet |
+| `RECIPIENT_EMAILS` | Comma-separated fallback recipients |
+| `GOOGLE_SERVICE_ACCOUNT_JSON_B64` | Base64-encoded service account JSON |
+| `SESSION_API_URL` | URL of the whatsapp.js session manager (WhatsApp broadcast only) |
+
+Encode your service account: `base64 -i service_account.json | tr -d '\n'`
+
+---
+
+## Accomplishments We're Proud Of
+
+- **500+ email subscribers** acquired organically through student WhatsApp groups and word-of-mouth — zero paid promotion
+- **WhatsApp campus delivery system** — full distribution bridge that joins WhatsApp groups, filters opportunities by academic level (undergrad / grad / both), and broadcasts automatically. Pipeline gap fixed June 2026 (issue #62)
+- **Subscriber web portal** with real-time registration, QR code generation, and live ScoutBot status indicator
+- **Telegram integration** — built by [@tsouk88](https://github.com/tsouk88), extending delivery to a third channel with zero extra infrastructure
+- **Zero cost infrastructure** — entire stack runs free: GitHub Actions, Gmail SMTP, Google Sheets API
+- **All links are direct org URLs** — no news.google.com, no redirects
+
+---
+
 ## 🤝 Volunteer — Help Us Grow ScoutBot
 
 ScoutBot is maintained by a small founding team and open-source contributors. Several roles are open to volunteers — no application required.
@@ -195,52 +305,6 @@ ScoutBot is maintained by a small founding team and open-source contributors. Se
 | **QA Tester** | 2–4 hrs | Python, CLI |
 
 To apply: open a GitHub issue titled `volunteer: interested in [Role Name]`.
-
----
-
-## Run Locally
-
-```bash
-git clone https://github.com/TechHub-Extensions/ScoutBot.git
-cd ScoutBot
-pip install -r requirements.txt
-cp .env.example .env
-# Fill in .env with your credentials (see ENGINEERING.md)
-
-python run.py --scrape      # Scrape only
-python run.py --cleanup     # Remove expired entries only
-python run.py --notify      # Send digest email only
-python run.py --dry-run     # Build email preview without sending
-python admin_report.py      # Send monthly stats report manually
-```
-
-### Required `.env` variables
-
-```env
-SENDER_EMAIL=your_gmail@gmail.com
-GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
-SPREADSHEET_ID=your_google_sheet_id
-FORM_SHEET_ID=your_form_responses_sheet_id
-GOOGLE_SERVICE_ACCOUNT_JSON=service_account.json
-RECIPIENT_EMAILS=email1@gmail.com,email2@gmail.com
-```
-
----
-
-## GitHub Actions Setup (runs independently)
-
-Add these secrets under **Settings → Secrets → Actions**:
-
-| Secret | Description |
-|--------|-------------|
-| `SENDER_EMAIL` | Gmail address to send from |
-| `GMAIL_APP_PASSWORD` | Gmail App Password (not your main password) |
-| `SPREADSHEET_ID` | ID of the main Google Sheet |
-| `FORM_SHEET_ID` | ID of the subscriber form response sheet |
-| `RECIPIENT_EMAILS` | Comma-separated fallback recipients |
-| `GOOGLE_SERVICE_ACCOUNT_JSON_B64` | Base64-encoded service account JSON |
-
-Encode your service account: `base64 -i service_account.json | tr -d '\n'`
 
 ---
 
