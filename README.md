@@ -38,10 +38,27 @@ Campus leads can register their WhatsApp group to receive opportunities **automa
 
 **How to register your campus group:**
 1. Open the **[Campus Lead Portal →](https://scout-bott.vercel.app)**
-2. Paste your WhatsApp group invite link (`chat.whatsapp.com/...`)
-3. Select which type of opportunities your group wants to receive
-4. ScoutBot joins your group automatically
-5. Make **+234 816 449 9922** (ScoutBot) an Admin so it can post
+2. Enter your campus / university name
+3. Paste your WhatsApp group invite link (`chat.whatsapp.com/...`)
+4. Select which type of opportunities your group wants to receive
+5. ScoutBot joins your group automatically and sends a welcome message
+6. **Make +234 816 449 9922 (ScoutBot) a Group Admin** — see instructions below
+
+---
+
+#### ⚙️ Making ScoutBot a Group Admin
+
+After ScoutBot joins your group, **please make it a group admin**. This ensures ScoutBot can always post — some groups have admin-only messaging enabled, and without admin status ScoutBot's broadcasts may be blocked.
+
+**Steps (takes less than 30 seconds):**
+
+1. Open your WhatsApp group
+2. Tap the group name at the top to open **Group Info**
+3. Scroll down to **Members** and find **+234 816 449 9922** (ScoutBot)
+4. Tap ScoutBot's number → tap **Make Group Admin**
+5. Done ✅ — ScoutBot can now always post to the group
+
+> ScoutBot will only ever post opportunities — it will never read your members' messages or interfere with group conversations.
 
 ---
 
@@ -145,6 +162,17 @@ python run.py
 ```
 
 The order is: **scrape → cleanup → broadcast → email digest**. WhatsApp messages go out automatically after every scrape. If `SESSION_API_URL` is not set or `whatsapp.js` is not running, the broadcast step is skipped cleanly — nothing else breaks.
+
+### 5. Make ScoutBot a Group Admin
+
+After ScoutBot joins any group, **make it a group admin** so it can always post:
+
+1. Open the WhatsApp group
+2. Tap the group name → **Group Info**
+3. Scroll to **Members** → find **+234 816 449 9922** (ScoutBot)
+4. Tap ScoutBot → **Make Group Admin**
+
+This step is critical for groups with admin-only messaging enabled.
 
 ### Broadcast manually
 
