@@ -33,6 +33,17 @@ app.use(cors({
 
 app.use(express.json());
 
+// ── Base-path stripping (proxy deployments: /campus → /) ────────────────────
+const BASE_PATH = (process.env.BASE_PATH || "").replace(/\/$/, "");
+if (BASE_PATH) {
+  app.use((req, _res, next) => {
+    if (req.url === BASE_PATH || req.url.startsWith(BASE_PATH + "/")) {
+      req.url = req.url.slice(BASE_PATH.length) || "/";
+    }
+    next();
+  });
+}
+
 // ── Database Setup ──────────────────────────────────────────────────────────
 const DB_PATH = path.join(__dirname, "scoutbot.db");
 const db = new Database(DB_PATH);
@@ -147,6 +158,188 @@ function extractInviteCode(link) {
 }
 
 // ── Routes ───────────────────────────────────────────────────────────────────
+
+// GET /healthz — proxy health check
+app.get("/healthz", (_req, res) => res.json({ status: "ok" }));
+
+// GET / — Campus registration portal
+app.get("/", (_req, res) => {
+  const basePath = BASE_PATH || "";
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ScoutBot — Campus Registration</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh}
+  .hero{background:linear-gradient(135deg,#1a3a2a 0%,#0d2818 100%);padding:48px 24px 36px;text-align:center;border-bottom:1px solid #21362b}
+  .logo{font-size:2.4rem;font-weight:800;color:#3fb950;letter-spacing:-1px}
+  .logo span{color:#e6edf3}
+  .tagline{margin-top:8px;color:#8b949e;font-size:1rem}
+  .badge{display:inline-flex;align-items:center;gap:6px;background:#1c2d20;border:1px solid #2ea04326;border-radius:20px;padding:4px 14px;font-size:.82rem;margin-top:14px;color:#3fb950}
+  .dot{width:8px;height:8px;border-radius:50%;background:#3fb950;animation:pulse 2s infinite}
+  .dot.red{background:#f85149;animation:none}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .container{max-width:560px;margin:0 auto;padding:40px 24px}
+  .card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:28px;margin-bottom:24px}
+  .card h2{font-size:1.05rem;font-weight:600;color:#e6edf3;margin-bottom:6px}
+  .card p{font-size:.88rem;color:#8b949e;line-height:1.6}
+  .status-row{display:flex;align-items:center;gap:10px;margin-bottom:18px;padding:12px 16px;background:#0d1117;border-radius:8px;border:1px solid #30363d}
+  .status-text{font-size:.88rem}
+  label{display:block;font-size:.85rem;color:#8b949e;margin-bottom:6px;margin-top:16px}
+  label:first-of-type{margin-top:0}
+  input,select{width:100%;padding:10px 14px;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#e6edf3;font-size:.93rem;outline:none;transition:border .2s}
+  input:focus,select:focus{border-color:#3fb950}
+  input::placeholder{color:#484f58}
+  .btn{margin-top:20px;width:100%;padding:12px;background:#238636;color:#fff;border:none;border-radius:8px;font-size:.95rem;font-weight:600;cursor:pointer;transition:background .2s}
+  .btn:hover{background:#2ea043}
+  .btn:disabled{background:#21402a;color:#484f58;cursor:not-allowed}
+  .alert{margin-top:16px;padding:12px 16px;border-radius:8px;font-size:.88rem;display:none}
+  .alert.success{background:#1c2d20;border:1px solid #2ea04380;color:#3fb950;display:block}
+  .alert.error{background:#2d1b1b;border:1px solid #f8514980;color:#f85149;display:block}
+  .stat{text-align:center;padding:20px}
+  .stat-num{font-size:2rem;font-weight:700;color:#3fb950}
+  .stat-label{font-size:.82rem;color:#8b949e;margin-top:4px}
+  .steps{list-style:none;counter-reset:step}
+  .steps li{counter-increment:step;display:flex;gap:12px;margin-bottom:14px;font-size:.88rem;color:#8b949e;line-height:1.5}
+  .steps li::before{content:counter(step);min-width:22px;height:22px;background:#21362b;color:#3fb950;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;flex-shrink:0;margin-top:1px}
+  footer{text-align:center;padding:24px;font-size:.8rem;color:#484f58}
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="logo">Scout<span>Bot</span></div>
+  <div class="tagline">Automated opportunity discovery for Nigerian students</div>
+  <div class="badge"><span class="dot" id="sessionDot"></span><span id="sessionLabel">Checking session…</span></div>
+</div>
+<div class="container">
+
+  <div class="card">
+    <div class="status-row">
+      <span class="dot" id="statusDot" style="background:#484f58"></span>
+      <span class="status-text" id="statusText">Connecting…</span>
+    </div>
+    <h2>Register Your Campus Group</h2>
+    <p>ScoutBot will automatically broadcast scholarships, fellowships, and internships to your WhatsApp group twice daily — 7 AM and 7 PM.</p>
+
+    <form id="regForm" onsubmit="submitForm(event)">
+      <label for="campus">Campus / University Name</label>
+      <input id="campus" type="text" placeholder="e.g. University of Lagos" required>
+
+      <label for="link">WhatsApp Group Invite Link</label>
+      <input id="link" type="url" placeholder="https://chat.whatsapp.com/…" required>
+
+      <label for="pref">Opportunity Type</label>
+      <select id="pref">
+        <option value="both">Everything — Scholarships, Internships & More</option>
+        <option value="scholarship">Scholarships &amp; Fellowships only</option>
+        <option value="internship">Internships &amp; Tech Programs only</option>
+      </select>
+
+      <button class="btn" type="submit" id="submitBtn">Register Campus Group</button>
+    </form>
+    <div class="alert" id="alertBox"></div>
+  </div>
+
+  <div class="card" style="text-align:center">
+    <div class="stat"><div class="stat-num" id="campusCount">—</div><div class="stat-label">Campus groups receiving broadcasts</div></div>
+  </div>
+
+  <div class="card">
+    <h2>How it works</h2>
+    <ul class="steps">
+      <li>Paste your campus WhatsApp group invite link above — ScoutBot joins instantly</li>
+      <li>At 7 AM and 7 PM every day, ScoutBot scrapes 15+ opportunity sites</li>
+      <li>Every new scholarship, fellowship, or internship drops directly into your group — no manual work</li>
+      <li>Your group members apply before the crowd even knows it's open</li>
+    </ul>
+  </div>
+</div>
+<footer>Powered by ScoutBot &mdash; built for Nigerian students</footer>
+
+<script>
+const BASE = "${basePath}";
+const api  = p => fetch(BASE + p).then(r => r.json()).catch(() => ({}));
+
+async function loadStatus() {
+  const [st, cnt] = await Promise.all([
+    api("/status"),
+    api("/groups/count"),
+  ]);
+
+  const ready = st.ready === true;
+  const dot   = document.getElementById("statusDot");
+  const txt   = document.getElementById("statusText");
+  const sdot  = document.getElementById("sessionDot");
+  const slbl  = document.getElementById("sessionLabel");
+
+  dot.style.background = ready ? "#3fb950" : (st.qr ? "#d29922" : "#f85149");
+  txt.textContent = ready
+    ? "✅ WhatsApp session active — broadcasts are live"
+    : st.qr
+      ? "⚠️ Scan the QR code in Replit console to activate session"
+      : "🔴 Session not connected";
+
+  sdot.style.background = ready ? "#3fb950" : "#d29922";
+  sdot.className = "dot" + (ready ? "" : " red");
+  slbl.textContent = ready ? "Session active" : "Session pending";
+
+  const n = cnt.count ?? "—";
+  document.getElementById("campusCount").textContent = n;
+}
+
+async function submitForm(e) {
+  e.preventDefault();
+  const btn = document.getElementById("submitBtn");
+  const box = document.getElementById("alertBox");
+  btn.disabled = true;
+  btn.textContent = "Registering…";
+  box.className = "alert";
+
+  const body = {
+    campus_name:  document.getElementById("campus").value.trim(),
+    invite_link:  document.getElementById("link").value.trim(),
+    preference:   document.getElementById("pref").value,
+  };
+
+  try {
+    const r = await fetch(BASE + "/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+
+    if (r.status === 409) {
+      box.className = "alert error";
+      box.textContent = "This group is already registered under: " + data.existing_campus;
+    } else if (data.success || data.pending) {
+      box.className = "alert success";
+      box.textContent = data.pending
+        ? "✅ Campus registered! Will be joined once WhatsApp session is active."
+        : "🎉 " + (data.message || "Campus registered and group joined successfully!");
+      document.getElementById("regForm").reset();
+      loadStatus();
+    } else {
+      throw new Error(data.error || "Unknown error");
+    }
+  } catch (err) {
+    box.className = "alert error";
+    box.textContent = "❌ " + err.message;
+  }
+
+  btn.disabled = false;
+  btn.textContent = "Register Campus Group";
+}
+
+loadStatus();
+setInterval(loadStatus, 15000);
+</script>
+</body>
+</html>`);
+});
 
 // GET /status — session health check + QR if needed
 app.get("/status", (req, res) => {
