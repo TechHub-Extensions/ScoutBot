@@ -1,0 +1,64 @@
+name: ScoutBot — Update README Stats
+
+# Runs after the weekly scrape (07:30 WAT = 06:30 UTC) so opportunity counts
+# reflect the freshly-scraped data.  Can also be triggered manually.
+
+on:
+  schedule:
+    - cron: '30 6 * * 0'   # 07:30 WAT every Sunday (30 min after scrape)
+  workflow_dispatch:
+
+jobs:
+  update-stats:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore Google service account JSON
+        env:
+          SA_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SA_JSON_B64: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON_B64 }}
+        run: |
+          if [ -n "$SA_JSON_B64" ]; then
+            echo "$SA_JSON_B64" | base64 -d > service_account.json
+          elif [ -n "$SA_JSON" ]; then
+            printf '%s' "$SA_JSON" > service_account.json
+          else
+            echo "ERROR: No service account secret found." >&2
+            exit 1
+          fi
+
+      - name: Update README stats
+        env:
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          FORM_SHEET_ID: 1dFcnVvQjWkuYhN1rplICTY0j88KgvGqQ3FzYId2ru4s
+          GOOGLE_SERVICE_ACCOUNT_JSON: service_account.json
+        run: python scripts/update_stats.py
+
+      - name: Commit updated stats
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          if git diff --cached --quiet; then
+            echo "No stats change — skipping commit."
+          else
+            git commit -m "chore: update README stats [skip ci]"
+            git push
+          fi
