@@ -14,6 +14,7 @@ Usage:
 
 import argparse
 import os
+import sys
 import smtplib
 import logging
 import time
@@ -341,6 +342,9 @@ def main():
     # Mark as sent so this never fires again automatically
     if success and not args.force:
         _mark_as_sent()
+
+    if not success:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

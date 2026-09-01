@@ -12,6 +12,7 @@ Email contains two sections:
 
 import os
 import re
+import sys
 import imaplib
 import smtplib
 import argparse
@@ -244,6 +245,36 @@ def fetch_recent_from_tab(tab_name, limit=25):
 
         result = recent[-limit:] if len(recent) > limit else recent
         logger.info(f"notify: {len(result)} recent entries from '{tab_name}'.")
+        return result
+    except Exception as exc:
+        logger.error(f"notify: Could not fetch '{tab_name}' — {exc}")
+        return []
+
+
+def fetch_latest_from_tab(tab_name, limit=25):
+    """Fetch up to `limit` most recent entries regardless of date added."""
+    try:
+        client = _get_sheet_client()
+        ss = client.open_by_key(SPREADSHEET_ID)
+        try:
+            ws = ss.worksheet(tab_name)
+        except Exception:
+            logger.warning(f"notify: Tab '{tab_name}' not found.")
+            return []
+
+        all_values = ws.get_all_values()
+        if not all_values:
+            return []
+        raw_headers = all_values[0]
+        headers = [h.strip() for h in raw_headers]
+        rows_raw = all_values[1:]
+        rows = []
+        for r in rows_raw:
+            padded = list(r) + [""] * max(0, len(headers) - len(r))
+            rows.append(dict(zip(headers, padded[:len(headers)])))
+
+        result = rows[-limit:] if len(rows) > limit else rows
+        logger.info(f"notify: {len(result)} total entries from '{tab_name}' (fallback).")
         return result
     except Exception as exc:
         logger.error(f"notify: Could not fetch '{tab_name}' — {exc}")
@@ -515,11 +546,19 @@ def run_notify(dry_run=False):
     nigeria_opps = fetch_recent_from_tab("Nigeria",       limit=25)
     intl_opps    = fetch_recent_from_tab("International", limit=25)
 
+    if not nigeria_opps and not intl_opps:
+        logger.warning(
+            "notify: No opportunities added in the last "
+            f"{RECENT_DAYS} days. Falling back to latest entries."
+        )
+        nigeria_opps = fetch_latest_from_tab("Nigeria",       limit=25)
+        intl_opps    = fetch_latest_from_tab("International", limit=25)
+
     if not nigeria_opps and not intl_opps and not dry_run:
-        logger.warning("notify: No recent opportunities. No email sent.")
+        logger.error("notify: No opportunities found at all. No email sent.")
         return False
     if not nigeria_opps and not intl_opps:
-        logger.warning("notify: No recent opportunities; writing empty dry-run preview.")
+        logger.warning("notify: No opportunities found; writing empty dry-run preview.")
 
     recipients = build_recipient_list()
 
@@ -542,7 +581,9 @@ def main():
         help="Build email_preview.html without sending any email"
     )
     args = parser.parse_args()
-    run_notify(dry_run=args.dry_run)
+    ok = run_notify(dry_run=args.dry_run)
+    if not ok:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

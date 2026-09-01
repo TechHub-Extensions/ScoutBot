@@ -62,7 +62,7 @@ def run_notify(dry_run=False):
     """Read the sheet and email the digest to all subscribers."""
     sys.path.insert(0, SCRIPT_DIR)
     from notify import run_notify as _run_notify
-    _run_notify(dry_run=dry_run)
+    return _run_notify(dry_run=dry_run)
 
 
 def run_broadcast():
@@ -137,7 +137,9 @@ def main():
     elif args.cleanup:
         run_cleanup()
     elif args.notify or args.dry_run:
-        run_notify(dry_run=args.dry_run)
+        ok = run_notify(dry_run=args.dry_run)
+        if not ok:
+            sys.exit(1)
     elif args.schedule:
         run_schedule()
     else:
