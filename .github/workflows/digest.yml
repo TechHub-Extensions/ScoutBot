@@ -4,29 +4,18 @@ name: ScoutBot — Weekly Sunday Digest
 #   1. Sends the apology/update announcement (so latecomers who missed it get it)
 #   2. Sends the weekly opportunity digest (last 7 days only)
 #
-# The announcement email is idempotent in tone — receiving it twice is fine.
-# Can also be triggered manually from the GitHub Actions tab.
-#
 # On push to main, runs a dry-run (builds email preview without sending).
 
 on:
   schedule:
-    - cron: '0 9 * * 0'    # 10:00 WAT every Sunday
+    - cron: '0 9 * * 0'
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - 'notify.py'
-      - 'announce.py'
-      - 'run.py'
-      - 'telegram_notify.py'
-      - 'requirements.txt'
-      - '.github/workflows/digest.yml'
 
 jobs:
   digest:
     runs-on: ubuntu-latest
-    # 518 subscribers ÷ 30 per batch × 6-min pause × 2 emails = ~220 min
     timeout-minutes: 240
 
     steps:

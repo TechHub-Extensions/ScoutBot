@@ -2,26 +2,13 @@ name: ScoutBot — Scrape (Weekly, Sundays)
 
 # Scrapes all sources and removes expired entries once per week on Sunday at 07:00 WAT.
 # Does NOT send the email digest — that runs separately (also Sundays, digest.yml).
-#
-# The spider refuses to add any opportunity whose source post is older than
-# 3 days (MAX_POST_AGE_DAYS), ensuring only fresh listings enter the sheet.
-# cleanup.py then removes entries that have:
-#   • a deadline that has already passed, OR
-#   • been in the sheet for more than 33 days (hard cap, no exceptions)
-# Together these ensure every entry in the sheet is open and current.
 
 on:
   schedule:
-    - cron: '0 6 * * 0'            # 07:00 WAT every Sunday (UTC+1 → 06:00 UTC)
+    - cron: '0 6 * * 0'
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - 'scoutbot/**'
-      - 'run.py'
-      - 'cleanup.py'
-      - 'requirements.txt'
-      - '.github/workflows/scoutbot.yml'
 
 jobs:
   scrape:

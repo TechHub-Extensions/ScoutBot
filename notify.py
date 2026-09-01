@@ -47,7 +47,7 @@ _ENV_EMAILS = [
 EMAIL_BATCH_SIZE      = int(os.getenv("EMAIL_BATCH_SIZE", "30"))
 EMAIL_BATCH_PAUSE_SEC = int(os.getenv("EMAIL_BATCH_PAUSE_SEC", "360"))
 
-RECENT_DAYS = 7   # Only include opportunities added within this many days
+RECENT_DAYS = 7
 EMAIL_PREVIEW_PATH = Path(__file__).resolve().parent / "email_preview.html"
 
 SHEET_URL       = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit"
@@ -64,10 +64,8 @@ _UNSUB_MAILTO = (
     "&body=Please%20remove%20me%20from%20the%20ScoutBot%20mailing%20list."
 )
 
-# Basic format validation — rejects obviously malformed addresses
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")
 
-# Domains that never deliver (disposable, test, placeholder)
 _INVALID_DOMAINS = {
     "example.com", "test.com", "mailinator.com", "guerrillamail.com",
     "sharklasers.com", "guerrillamailblock.com", "grr.la", "yopmail.com",
@@ -104,10 +102,7 @@ def is_valid_email(addr):
     return True
 
 
-# ── Bounce tracking ─────────────────────────────────────────────────────────
-
 def fetch_bounced_emails():
-    """Load addresses from the Bounced tab (column A). Returns a set."""
     try:
         client = _get_sheet_client()
         ss = client.open_by_key(SPREADSHEET_ID)
@@ -125,7 +120,6 @@ def fetch_bounced_emails():
 
 
 def record_bounces(bad_addresses):
-    """Append newly-bounced addresses to the Bounced tab (creates tab if needed)."""
     if not bad_addresses:
         return
     try:
@@ -137,7 +131,6 @@ def record_bounces(bad_addresses):
             ws = ss.add_worksheet(title="Bounced", rows=500, cols=3)
             ws.append_row(["Email", "Date", "Reason"])
             logger.info("notify: Created Bounced tab.")
-
         today = date.today().isoformat()
         rows = [[addr, today, "SMTP rejected"] for addr in bad_addresses]
         ws.append_rows(rows, value_input_option="USER_ENTERED")
@@ -145,8 +138,6 @@ def record_bounces(bad_addresses):
     except Exception as exc:
         logger.error(f"notify: Could not record bounces — {exc}")
 
-
-# ── Subscriber list ──────────────────────────────────────────────────────────
 
 def fetch_form_subscribers():
     try:
@@ -177,9 +168,6 @@ def fetch_subscribers_tab():
 
 
 def build_recipient_list():
-    """
-    Merge all sources, deduplicate, validate format, and exclude bounced addresses.
-    """
     bounced = fetch_bounced_emails()
     combined = fetch_form_subscribers() + fetch_subscribers_tab() + _ENV_EMAILS
     seen, result = set(), []
@@ -194,7 +182,6 @@ def build_recipient_list():
             invalid_count += 1
             continue
         result.append(e)
-
     logger.info(
         f"notify: {len(result)} valid recipients "
         f"(skipped {len(bounced)} bounced, {invalid_count} invalid format)."
@@ -202,10 +189,7 @@ def build_recipient_list():
     return result
 
 
-# ── Opportunity data ─────────────────────────────────────────────────────────
-
 def fetch_recent_from_tab(tab_name, limit=25):
-    """Fetch up to `limit` entries added in the last RECENT_DAYS days."""
     try:
         client = _get_sheet_client()
         ss = client.open_by_key(SPREADSHEET_ID)
@@ -214,23 +198,18 @@ def fetch_recent_from_tab(tab_name, limit=25):
         except Exception:
             logger.warning(f"notify: Tab '{tab_name}' not found.")
             return []
-
         all_values = ws.get_all_values()
         if not all_values:
             return []
-        # Build header list, stripping empty trailing columns
         raw_headers = all_values[0]
         headers = [h.strip() for h in raw_headers]
         rows_raw = all_values[1:]
         rows = []
         for r in rows_raw:
-            # Pad or trim row to match header length
             padded = list(r) + [""] * max(0, len(headers) - len(r))
             rows.append(dict(zip(headers, padded[:len(headers)])))
-
         cutoff = date.today() - timedelta(days=RECENT_DAYS)
         recent = []
-
         for row in rows:
             date_added_str = str(row.get("Date Added", "")).strip()
             if date_added_str:
@@ -241,8 +220,7 @@ def fetch_recent_from_tab(tab_name, limit=25):
                 except Exception:
                     recent.append(row)
             else:
-                recent.append(row)   # legacy rows without Date Added
-
+                recent.append(row)
         result = recent[-limit:] if len(recent) > limit else recent
         logger.info(f"notify: {len(result)} recent entries from '{tab_name}'.")
         return result
@@ -252,7 +230,6 @@ def fetch_recent_from_tab(tab_name, limit=25):
 
 
 def fetch_latest_from_tab(tab_name, limit=25):
-    """Fetch up to `limit` most recent entries regardless of date added."""
     try:
         client = _get_sheet_client()
         ss = client.open_by_key(SPREADSHEET_ID)
@@ -261,7 +238,6 @@ def fetch_latest_from_tab(tab_name, limit=25):
         except Exception:
             logger.warning(f"notify: Tab '{tab_name}' not found.")
             return []
-
         all_values = ws.get_all_values()
         if not all_values:
             return []
@@ -272,7 +248,6 @@ def fetch_latest_from_tab(tab_name, limit=25):
         for r in rows_raw:
             padded = list(r) + [""] * max(0, len(headers) - len(r))
             rows.append(dict(zip(headers, padded[:len(headers)])))
-
         result = rows[-limit:] if len(rows) > limit else rows
         logger.info(f"notify: {len(result)} total entries from '{tab_name}' (fallback).")
         return result
@@ -281,10 +256,7 @@ def fetch_latest_from_tab(tab_name, limit=25):
         return []
 
 
-# ── Email HTML (SWElist-inspired clean format) ───────────────────────────────
-
 def _opp_list_items(opps):
-    """Build clean list items — one opportunity per line, link + deadline."""
     CATEGORY_COLORS = {
         "Scholarship":    "#1a5276",
         "Fellowship":     "#6c3483",
@@ -348,10 +320,8 @@ def build_html(nigeria_opps, intl_opps):
     week_end = date.today()
     week_start = week_end - timedelta(days=6)
     span_str = f"{week_start.strftime('%b %d')} – {week_end.strftime('%b %d, %Y')}"
-
     nigeria_block = _section_block("🇳🇬", "Nigeria", len(nigeria_opps), nigeria_opps, "#1a5276")
     intl_block    = _section_block("🌍", "International", len(intl_opps), intl_opps, "#1d6348")
-
     return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -380,28 +350,22 @@ def build_html(nigeria_opps, intl_opps):
 </head>
 <body style="font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;max-width:620px;
              margin:auto;padding:24px 16px;background:#fff;">
-
   <div class="email-shell" style="width:100%;max-width:620px;margin:0 auto;">
   <div style="border-bottom:3px solid #1a1a2e;padding-bottom:12px;margin-bottom:18px;">
     <h2 class="digest-title" style="margin:0;color:#1a1a2e;font-size:20px;line-height:1.3;">ScoutBot — Weekly Digest</h2>
     <p style="margin:4px 0 0;color:#777;font-size:13px;">{span_str} &nbsp;·&nbsp; {total} fresh opportunities</p>
   </div>
-
   <p style="font-size:15px;line-height:1.6;">
     Hey! Here are this week's student opportunities — <strong>only listings added in the last 7 days</strong>.
     Click <strong>Apply →</strong> to go straight to the application page.
   </p>
-
   {nigeria_block}
   {intl_block}
-
   <div style="margin-top:28px;padding-top:12px;border-top:1px solid #eee;font-size:13px;">
     <a href="{SHEET_URL}" style="color:#1a5276;">📋 Full spreadsheet &rarr;</a>
     &nbsp;&nbsp;|&nbsp;&nbsp;
     <a href="{FUNDRAISING_DOC}" style="color:#888;">Support ScoutBot</a>
   </div>
-
-  <!-- ── inbox cleanup ─────────────────────────────────────────────────── -->
   <div style="margin:18px 0 0;background:#fafafa;border:1px solid #e0e0e0;border-radius:7px;padding:14px 16px;">
     <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#555;">🗑 Too many old ScoutBot emails?</p>
     <p style="margin:0 0 10px;font-size:12px;color:#888;line-height:1.6;">
@@ -417,20 +381,15 @@ def build_html(nigeria_opps, intl_opps):
       Or search: <code>from:kamsirichard1960@gmail.com</code>
     </span>
   </div>
-  <!-- ────────────────────────────────────────────────────────────────────── -->
-
   <div style="margin-top:12px;padding:8px 0;font-size:12px;color:#bbb;">
     <a href="{_UNSUB_MAILTO}" style="color:#c0392b;">Unsubscribe</a>
     &nbsp;&nbsp;|&nbsp;&nbsp;
     <a href="{GITHUB_URL}" style="color:#aaa;">GitHub</a>
     <br><span style="font-size:11px;">ScoutBot is open source &amp; student-built. Always verify opportunities at source.</span>
   </div>
-
 </body>
 </html>"""
 
-
-# ── Send ─────────────────────────────────────────────────────────────────────
 
 def build_subject(nigeria_opps, intl_opps):
     total = len(nigeria_opps) + len(intl_opps)
@@ -462,18 +421,14 @@ def send_email(nigeria_opps, intl_opps, recipients):
     if not recipients:
         logger.warning("notify: No recipients.")
         return False
-
     subject = build_subject(nigeria_opps, intl_opps)
     html    = build_html(nigeria_opps, intl_opps)
-
     batches       = [recipients[i:i + EMAIL_BATCH_SIZE]
                      for i in range(0, len(recipients), EMAIL_BATCH_SIZE)]
     total_batches = len(batches)
     logger.info(f"notify: Sending to {len(recipients)} recipients in {total_batches} batch(es).")
-
     successes  = 0
     all_bounced = []
-
     for i, batch in enumerate(batches, start=1):
         batch_ok = 0
         try:
@@ -485,7 +440,6 @@ def send_email(nigeria_opps, intl_opps, recipients):
                         server.sendmail(SENDER_EMAIL, [addr], msg.as_string())
                         batch_ok += 1
                     except smtplib.SMTPRecipientsRefused:
-                        # Hard bounce — recipient permanently rejected by their server
                         logger.warning(f"notify: Hard bounce for {addr} — adding to Bounced list.")
                         all_bounced.append(addr)
                     except Exception as exc:
@@ -494,48 +448,33 @@ def send_email(nigeria_opps, intl_opps, recipients):
             logger.info(f"notify: Batch {i}/{total_batches} — {batch_ok}/{len(batch)} sent.")
         except Exception as exc:
             logger.error(f"notify: Batch {i}/{total_batches} SMTP error — {exc}")
-
         if i < total_batches:
             logger.info(f"notify: Pausing {EMAIL_BATCH_PAUSE_SEC}s...")
             time.sleep(EMAIL_BATCH_PAUSE_SEC)
-
-    # Persist any hard bounces so future runs skip them
     if all_bounced:
         record_bounces(all_bounced)
-
     logger.info(f"notify: Done. {successes}/{len(recipients)} delivered, {len(all_bounced)} bounced.")
     return successes > 0
 
 
 def purge_sent_scoutbot_emails():
-    """
-    Connect to Gmail via IMAP and permanently delete every ScoutBot digest
-    email from the Sent folder.  Silently skips if credentials are missing.
-    """
     if not SENDER_EMAIL or not GMAIL_APP_PASSWORD:
         return
     try:
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
         mail.login(SENDER_EMAIL, GMAIL_APP_PASSWORD)
-
-        # Gmail stores sent mail in "[Gmail]/Sent Mail"
         status, _ = mail.select('"[Gmail]/Sent Mail"')
         if status != "OK":
             mail.logout()
             return
-
-        # Find all ScoutBot digest emails by subject prefix
         _, data = mail.search(None, 'SUBJECT "ScoutBot"')
         msg_ids = data[0].split() if data[0] else []
-
         if msg_ids:
-            # Mark all matches as deleted
             mail.store(b",".join(msg_ids), "+FLAGS", "\\Deleted")
             mail.expunge()
             logger.info(f"notify: Purged {len(msg_ids)} ScoutBot email(s) from Sent folder.")
         else:
             logger.info("notify: No ScoutBot emails found in Sent folder.")
-
         mail.close()
         mail.logout()
     except Exception as exc:
@@ -545,7 +484,6 @@ def purge_sent_scoutbot_emails():
 def run_notify(dry_run=False):
     nigeria_opps = fetch_recent_from_tab("Nigeria",       limit=25)
     intl_opps    = fetch_recent_from_tab("International", limit=25)
-
     if not nigeria_opps and not intl_opps:
         logger.warning(
             "notify: No opportunities added in the last "
@@ -553,21 +491,17 @@ def run_notify(dry_run=False):
         )
         nigeria_opps = fetch_latest_from_tab("Nigeria",       limit=25)
         intl_opps    = fetch_latest_from_tab("International", limit=25)
-
     if not nigeria_opps and not intl_opps and not dry_run:
         logger.error("notify: No opportunities found at all. No email sent.")
         return False
     if not nigeria_opps and not intl_opps:
         logger.warning("notify: No opportunities found; writing empty dry-run preview.")
-
     recipients = build_recipient_list()
-
     if dry_run:
         subject = build_subject(nigeria_opps, intl_opps)
         html    = build_html(nigeria_opps, intl_opps)
         write_email_preview(html, subject, recipients)
         return True
-
     result = send_email(nigeria_opps, intl_opps, recipients)
     purge_sent_scoutbot_emails()
     return result
