@@ -6,11 +6,22 @@ name: ScoutBot — Weekly Sunday Digest
 #
 # The announcement email is idempotent in tone — receiving it twice is fine.
 # Can also be triggered manually from the GitHub Actions tab.
+#
+# On push to main, runs a dry-run (builds email preview without sending).
 
 on:
   schedule:
     - cron: '0 9 * * 0'    # 10:00 WAT every Sunday
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'notify.py'
+      - 'announce.py'
+      - 'run.py'
+      - 'telegram_notify.py'
+      - 'requirements.txt'
+      - '.github/workflows/digest.yml'
 
 jobs:
   digest:
@@ -61,20 +72,29 @@ jobs:
           TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}
           EOF
 
+      - name: Dry-run email digest (build preview without sending)
+        if: github.event_name == 'push'
+        run: python run.py --dry-run
+
       - name: Send announcement / update email (catches any who missed it mid-week)
+        if: github.event_name != 'push'
         run: python announce.py
 
       - name: Send weekly opportunity digest
+        if: github.event_name != 'push'
         run: python run.py --notify
 
       - name: Send Telegram digest
+        if: github.event_name != 'push'
         run: python telegram_notify.py
 
-      - name: Upload logs
+      - name: Upload logs and preview
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: digest-logs
-          path: scoutbot.log
+          path: |
+            scoutbot.log
+            email_preview.html
           if-no-files-found: ignore
           retention-days: 14
