@@ -10,6 +10,10 @@
 [![Weekly Digest](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/digest.yml/badge.svg)](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/digest.yml)
 [![Pytest](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/pytest.yml/badge.svg)](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/pytest.yml)
 
+<!-- stats start -->
+**507 subscribers · 0+ opportunities indexed · 30 sources** *(updated Jun 23, 2026)*
+<!-- stats end -->
+
 ---
 
 ## 📬 Three Ways to Receive ScoutBot
