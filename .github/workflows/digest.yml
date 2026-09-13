@@ -73,8 +73,10 @@ jobs:
         if: github.event_name != 'push'
         run: python run.py --notify
 
+      # Still post to Telegram if Gmail SMTP fails — otherwise a bad
+      # GMAIL_APP_PASSWORD secret silently skips the channel too.
       - name: Send Telegram digest
-        if: github.event_name != 'push'
+        if: always() && github.event_name != 'push'
         run: python telegram_notify.py
 
       - name: Upload logs and preview
