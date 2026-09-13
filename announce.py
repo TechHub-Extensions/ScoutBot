@@ -301,6 +301,14 @@ def send_announcement(recipients):
             logger.info(f"announce: Batch {i}/{len(batches)} — {ok}/{len(batch)} sent.")
         except Exception as exc:
             logger.error(f"announce: Batch {i} SMTP error — {exc}")
+            if isinstance(exc, smtplib.SMTPAuthenticationError) or (
+                "535" in str(exc) and "username and password" in str(exc).lower()
+            ):
+                logger.error(
+                    "announce: Gmail rejected SENDER_EMAIL / GMAIL_APP_PASSWORD. "
+                    "Aborting remaining batches."
+                )
+                return False
 
         if i < len(batches):
             logger.info(f"announce: Pausing {EMAIL_BATCH_PAUSE_SEC}s...")

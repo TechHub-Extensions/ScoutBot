@@ -7,6 +7,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [Unreleased]
 
+### Fixed
+- Weekly digest now aborts immediately when Gmail returns SMTP 535 (bad app password) instead of waiting ~90 minutes across all batches
+- Telegram digest still sends if the Gmail step fails, so a bad `GMAIL_APP_PASSWORD` secret no longer skips the channel
+
 ### Added
 - International Google News RSS feeds — Commonwealth, UK, UN, World Bank opportunities now populate the International tab automatically
 - `docs/AI_IMPLEMENTATION.md` — full technical write-up of the Gemini AI pipeline

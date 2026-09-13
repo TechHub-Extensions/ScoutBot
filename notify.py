@@ -66,6 +66,17 @@ _UNSUB_MAILTO = (
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")
 
+
+def _is_smtp_auth_error(exc):
+    """True when Gmail rejected SENDER_EMAIL / GMAIL_APP_PASSWORD."""
+    if isinstance(exc, smtplib.SMTPAuthenticationError):
+        return True
+    msg = str(exc).lower()
+    return "535" in msg and (
+        "username and password" in msg or "badcredentials" in msg
+    )
+
+
 _INVALID_DOMAINS = {
     "example.com", "test.com", "mailinator.com", "guerrillamail.com",
     "sharklasers.com", "guerrillamailblock.com", "grr.la", "yopmail.com",
@@ -448,6 +459,14 @@ def send_email(nigeria_opps, intl_opps, recipients):
             logger.info(f"notify: Batch {i}/{total_batches} — {batch_ok}/{len(batch)} sent.")
         except Exception as exc:
             logger.error(f"notify: Batch {i}/{total_batches} SMTP error — {exc}")
+            if _is_smtp_auth_error(exc):
+                logger.error(
+                    "notify: Gmail rejected SENDER_EMAIL / GMAIL_APP_PASSWORD. "
+                    "Aborting remaining batches instead of waiting through them. "
+                    "Rotate the GMAIL_APP_PASSWORD GitHub secret, then re-run "
+                    "'ScoutBot — Weekly Sunday Digest' from the Actions tab."
+                )
+                return False
         if i < total_batches:
             logger.info(f"notify: Pausing {EMAIL_BATCH_PAUSE_SEC}s...")
             time.sleep(EMAIL_BATCH_PAUSE_SEC)
