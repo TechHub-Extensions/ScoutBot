@@ -11,7 +11,7 @@
 [![Pytest](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/pytest.yml/badge.svg)](https://github.com/TechHub-Extensions/ScoutBot/actions/workflows/pytest.yml)
 
 <!-- stats start -->
-**512 subscribers · 8+ opportunities indexed · 30 sources** *(updated Nov 01, 2026)*
+**513 subscribers · 15+ opportunities indexed · 30 sources** *(updated Nov 08, 2026)*
 <!-- stats end -->
 
 ---
